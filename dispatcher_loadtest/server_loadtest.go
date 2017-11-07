@@ -4,12 +4,11 @@ import (
 	"fmt"
 	"go-dispatcher/dispatcher"
 	"net/http"
-	"time"
 )
 
 const (
-	numIter    int = 5000
-	numWorkers int = 10000
+	numIter    int = 10000
+	numWorkers int = 20
 )
 
 type serverJob struct {
@@ -21,16 +20,15 @@ func (job *serverJob) Do(worker dispatcher.Worker) {
 }
 
 func doSomething(numIter int) {
-	// x := 0
-	// y := 1
-	// a := 0
-	// // Generate some workload
-	// for i := 0; i < numIter; i++ {
-	// 	for j := 0; j < numIter; j++ {
-	// 		a += (x + y) / 2
-	// 	}
-	// }
-	time.Sleep(10 * time.Second)
+	x := 0
+	y := 1
+	a := 0
+	// Generate some workload
+	for i := 0; i < numIter; i++ {
+		for j := 0; j < numIter; j++ {
+			a += (x + y) / 2
+		}
+	}
 }
 
 var disp dispatcher.Dispatcher

@@ -1,13 +1,25 @@
 # go-dispatcher
-A goroutine job dispatcher inspired by the [Post: Handling 1 Million Requests per Minute with Go](http://marcio.io/2015/07/handling-1-million-requests-per-minute-with-golang/).
+A worker-pool job dispatcher inspired by the [Post: Handling 1 Million Requests per Minute with Go](http://marcio.io/2015/07/handling-1-million-requests-per-minute-with-golang/).
 
-* A worker-pool pattern is used.
-* Easy control of dependencies of batches of job executions.
+* Easily manage dependencies of batches of job executions.
 * Limit the total number of goroutines to prevent it from draining out of resources.
 
 ## How it works
 
-
+                -------------------------
+                |  global worker pool   |
+                |                       |
+                |                       |
+                -------------------------
+                 | /|\              | /|\
+           get   |  | return        |  |
+         workers |  | workers       |  |
+                \|/ |              \|/ |
+          ----------------     ----------------
+          |  dispatcher  |     |  dispatcher  |
+          |              |     |              |
+          |              |     |              |
+          ----------------     ----------------
 
 ## How to use
 
@@ -24,7 +36,7 @@ A goroutine job dispatcher inspired by the [Post: Handling 1 Million Requests pe
 
         disp.Start()
 
-4. Dispatch jobs (dispatch() will block until at least one worker becomes available, use go dispatch() to dispatch jobs async)
+4. Dispatch jobs (dispatch() will block until at least one worker becomes available)
 
         type myJob struct {
             // ...
@@ -36,10 +48,10 @@ A goroutine job dispatcher inspired by the [Post: Handling 1 Million Requests pe
 
         disp.Dispatch(&myJob{...})
 
-5. Finalize job dispatcher and wait until all jobs are done
+5. Wait until all jobs are done and return workers back to the global worker pool
 
         disp.Finalize()
 
-6. Optional: Wait until all job dispatchers are finalized and destroy the global worker pool.
+6. Optional: wait until all job dispatchers are finalized and destroy the global worker pool.
 
         dispatcher.DestroyWorkerPoolGlobal()
