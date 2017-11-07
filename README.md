@@ -37,7 +37,7 @@ A worker pool is used to spawn and keep workers globally. One or more job dispat
 
         disp.Start()
 
-4. Dispatch jobs (dispatch() will block until at least one worker becomes available)
+4. Dispatch jobs (dispatch() will block until at least one worker becomes available and take the job)
 
         type myJob struct {
             // ...
