@@ -43,7 +43,7 @@ A worker pool is used to spawn and keep workers globally. One or more job dispat
             // ...
         }
 
-        func (job *testJob) Do(worker dispatcher.Worker) {
+        func (job *myJob) Do(worker dispatcher.Worker) {
             // Do something ...
         }
 
