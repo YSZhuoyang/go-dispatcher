@@ -6,6 +6,12 @@ import (
 	"time"
 )
 
+const (
+	initialized int = 0
+	ready       int = 1
+	listening   int = 2
+)
+
 var workerPoolGlobal chan *_Worker
 var isInitialized bool
 var mutex sync.Mutex
@@ -16,12 +22,16 @@ type Job interface {
 	Do(worker Worker)
 }
 
-type _QuitJob struct{}
+type _QuitJob struct {
+	quitSender chan bool
+}
 
 func (quitJob *_QuitJob) Do(worker Worker) {
 	if worker.IsActive() {
 		worker.recycle()
 	}
+	// Tell the dispatcher that the worker has been recycled
+	quitJob.quitSender <- true
 }
 
 // Worker - A worker can only be created by the global worker pool
@@ -75,16 +85,18 @@ type Dispatcher interface {
 type _Dispatcher struct {
 	workerPool   chan *_Worker
 	jobChan      chan Job
+	quitReceiver chan bool
 	numWorkers   int
 	closed       bool
 	timeInterval time.Duration
+	state        int
 }
 
 func (dispatcher *_Dispatcher) Dispatch(job Job) {
 	dispatcher.jobChan <- job
 }
 
-// Spawn - Block until all workers are obtained from the
+// Spawn - Block until the given number of workers are obtained from the
 // global worker pool
 func (dispatcher *_Dispatcher) Spawn(numWorkers int) {
 	numWorkersTotal := cap(workerPoolGlobal)
@@ -102,10 +114,18 @@ func (dispatcher *_Dispatcher) Spawn(numWorkers int) {
 		go worker.register(dispatcher.workerPool)
 		dispatcher.numWorkers++
 	}
+
+	dispatcher.state = ready
 }
 
 // Start - Start another goroutine listening to jobs
 func (dispatcher *_Dispatcher) Start() {
+	if dispatcher.state != ready {
+		fmt.Println(`dispatcher.Spawn() must be called to obtain
+			workers before starting it`)
+		return
+	}
+
 	go func() {
 		for !dispatcher.closed {
 			worker := <-dispatcher.workerPool
@@ -122,17 +142,28 @@ func (dispatcher *_Dispatcher) Start() {
 		// Stop recycle workers
 		close(dispatcher.workerPool)
 	}()
+
+	dispatcher.state = listening
 }
 
 // Finalize - Block until all worker threads are popped out
 // of the pool and signaled with a quit command.
 func (dispatcher *_Dispatcher) Finalize() {
+	if dispatcher.state != listening {
+		fmt.Println(`dispatcher.Start() must be called to start
+			listening before finalizing it`)
+		return
+	}
+
 	// Send a quit job to each worker
 	for i := 0; i < dispatcher.numWorkers; i++ {
-		dispatcher.Dispatch(&_QuitJob{})
+		dispatcher.Dispatch(&_QuitJob{quitSender: dispatcher.quitReceiver})
+		// Block until the worker is recycled
+		<-dispatcher.quitReceiver
 	}
 	// Stop listening
 	dispatcher.closed = true
+	dispatcher.state = initialized
 }
 
 // NewDispatcher - Return a new job dispatcher
@@ -144,6 +175,7 @@ func NewDispatcher(timeInterval time.Duration) Dispatcher {
 
 	return &_Dispatcher{
 		jobChan:      make(chan Job),
+		quitReceiver: make(chan bool),
 		timeInterval: timeInterval,
 	}
 }

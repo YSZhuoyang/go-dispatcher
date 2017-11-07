@@ -20,7 +20,7 @@ A worker-pool job dispatcher inspired by the [Post: Handling 1 Million Requests 
           |              |     |              |
           ----------------     ----------------
 
-A worker pool is used to spawn and keep workers globally. One or more job dispatchers can be created by taking subsets of workers from it, and used to dispatch and execute jobs concurrently. Batches of jobs executed with different dispatchers can be either synchronous or asynchronous.
+A worker pool is used to spawn and keep workers globally. One or more job dispatchers can be created by taking subsets of workers from it, and registering them in their local worker pools. Workers are recycled by global worker pool after dispatchers are finalized. Batches of jobs executed with different dispatchers can be either synchronous or asynchronous.
 
 ## How to use
 

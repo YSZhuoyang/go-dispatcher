@@ -40,15 +40,46 @@ func TestInitAndDestroyWorkerPool(T *testing.T) {
 func TestSpawning(T *testing.T) {
 	assertion := assert.New(T)
 	dispatcher.InitWorkerPoolGlobal(numWorkers)
+	// Create one dispatcher
 	disp := dispatcher.NewDispatcher(0)
 	numWorkersTaken := 100
 	disp.Spawn(numWorkersTaken)
+	disp.Start()
 	numWorkersLeft := dispatcher.GetNumWorkersAvail()
 	numWorkersLeftExpected := numWorkers - numWorkersTaken
 	assertion.Equal(
 		numWorkersLeftExpected,
 		numWorkersLeft,
-		"Number of workers left were not correct",
+		"1) Number of workers left were not correct",
+	)
+	// Create another dispatcher
+	disp2 := dispatcher.NewDispatcher(0)
+	disp2.Spawn(numWorkersTaken)
+	disp2.Start()
+	numWorkersLeft = dispatcher.GetNumWorkersAvail()
+	numWorkersLeftExpected -= numWorkersTaken
+	assertion.Equal(
+		numWorkersLeftExpected,
+		numWorkersLeft,
+		"2) Number of workers left were not correct",
+	)
+	// Finalize the first dispatcher
+	disp.Finalize()
+	numWorkersLeft = dispatcher.GetNumWorkersAvail()
+	numWorkersLeftExpected += numWorkersTaken
+	assertion.Equal(
+		numWorkersLeftExpected,
+		numWorkersLeft,
+		"3) Number of workers left were not correct",
+	)
+	// Finalize the second dispatcher
+	disp2.Finalize()
+	numWorkersLeft = dispatcher.GetNumWorkersAvail()
+	numWorkersLeftExpected += numWorkersTaken
+	assertion.Equal(
+		numWorkersLeftExpected,
+		numWorkersLeft,
+		"4) Number of workers left were not correct",
 	)
 }
 
