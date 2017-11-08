@@ -23,7 +23,7 @@ type Job interface {
 }
 
 type _QuitJob struct {
-	quitSender chan bool
+	wg *sync.WaitGroup
 }
 
 func (quitJob *_QuitJob) Do(worker Worker) {
@@ -31,7 +31,7 @@ func (quitJob *_QuitJob) Do(worker Worker) {
 		worker.recycle()
 	}
 	// Tell the dispatcher that the worker has been recycled
-	quitJob.quitSender <- true
+	quitJob.wg.Done()
 }
 
 // Worker - A worker can only be created by the global worker pool
@@ -85,7 +85,7 @@ type Dispatcher interface {
 type _Dispatcher struct {
 	workerPool   chan *_Worker
 	jobChan      chan Job
-	quitReceiver chan bool
+	wg           sync.WaitGroup
 	numWorkers   int
 	closed       bool
 	timeInterval time.Duration
@@ -155,12 +155,13 @@ func (dispatcher *_Dispatcher) Finalize() {
 		return
 	}
 
+	dispatcher.wg.Add(dispatcher.numWorkers)
 	// Send a quit job to each worker
 	for i := 0; i < dispatcher.numWorkers; i++ {
-		dispatcher.Dispatch(&_QuitJob{quitSender: dispatcher.quitReceiver})
-		// Block until the worker is recycled
-		<-dispatcher.quitReceiver
+		dispatcher.Dispatch(&_QuitJob{wg: &dispatcher.wg})
 	}
+	// Block until all workers are recycled
+	dispatcher.wg.Wait()
 	// Stop listening
 	dispatcher.closed = true
 	dispatcher.state = initialized
@@ -175,7 +176,7 @@ func NewDispatcher(timeInterval time.Duration) Dispatcher {
 
 	return &_Dispatcher{
 		jobChan:      make(chan Job),
-		quitReceiver: make(chan bool),
+		wg:           sync.WaitGroup{},
 		timeInterval: timeInterval,
 	}
 }
