@@ -2,6 +2,7 @@ package dispatcher
 
 import (
 	"fmt"
+	"reflect"
 	"sync"
 	"time"
 )
@@ -22,11 +23,11 @@ type Job interface {
 	Do(worker Worker)
 }
 
-type _QuitJob struct {
+type quitJob struct {
 	wg *sync.WaitGroup
 }
 
-func (quitJob *_QuitJob) Do(worker Worker) {
+func (quitJob *quitJob) Do(worker Worker) {
 	if worker.IsActive() {
 		worker.recycle()
 	}
@@ -131,9 +132,9 @@ func (dispatcher *_Dispatcher) Start() {
 			worker := <-dispatcher.workerPool
 			job := <-dispatcher.jobChan
 			worker.jobListener <- job
-			if dispatcher.timeInterval > 0 {
+			if dispatcher.timeInterval > 0 && reflect.TypeOf(job).String() != "*dispatcher.quitJob" {
 				// Pause worker for a period of time as specified
-				time.Sleep(dispatcher.timeInterval * time.Millisecond)
+				time.Sleep(time.Duration(dispatcher.timeInterval * time.Millisecond))
 			}
 		}
 
@@ -158,7 +159,7 @@ func (dispatcher *_Dispatcher) Finalize() {
 	dispatcher.wg.Add(dispatcher.numWorkers)
 	// Send a quit job to each worker
 	for i := 0; i < dispatcher.numWorkers; i++ {
-		dispatcher.Dispatch(&_QuitJob{wg: &dispatcher.wg})
+		dispatcher.Dispatch(&quitJob{wg: &dispatcher.wg})
 	}
 	// Block until all workers are recycled
 	dispatcher.wg.Wait()
