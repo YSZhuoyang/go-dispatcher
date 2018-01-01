@@ -1,13 +1,13 @@
 package dispatcher_test
 
 import (
-	"go-dispatcher/dispatcher"
 	"testing"
 
+	"github.com/YSZhuoyang/go-dispatcher/dispatcher"
 	"github.com/stretchr/testify/assert"
 )
 
-const numWorkers int = 1000
+const numWorkersTotal int = 1000
 
 type testJob struct {
 	resultSender chan bool
@@ -20,11 +20,11 @@ func (job *testJob) Do(worker dispatcher.Worker) {
 func TestInitAndDestroyWorkerPool(T *testing.T) {
 	assertion := assert.New(T)
 	// Verify initialization
-	dispatcher.InitWorkerPoolGlobal(numWorkers)
+	dispatcher.InitWorkerPoolGlobal(numWorkersTotal)
 	numWorkersInitialized := dispatcher.GetNumWorkersAvail()
 	assertion.Equal(
 		numWorkersInitialized,
-		numWorkers,
+		numWorkersTotal,
 		"Total number of workers initialized was not correct",
 	)
 	// Verify destroying
@@ -39,14 +39,14 @@ func TestInitAndDestroyWorkerPool(T *testing.T) {
 
 func TestSpawning(T *testing.T) {
 	assertion := assert.New(T)
-	dispatcher.InitWorkerPoolGlobal(numWorkers)
+	dispatcher.InitWorkerPoolGlobal(numWorkersTotal)
 	// Create one dispatcher
 	disp := dispatcher.NewDispatcher(0)
 	numWorkersTaken := 100
 	disp.Spawn(numWorkersTaken)
 	disp.Start()
 	numWorkersLeft := dispatcher.GetNumWorkersAvail()
-	numWorkersLeftExpected := numWorkers - numWorkersTaken
+	numWorkersLeftExpected := numWorkersTotal - numWorkersTaken
 	assertion.Equal(
 		numWorkersLeftExpected,
 		numWorkersLeft,
@@ -81,15 +81,19 @@ func TestSpawning(T *testing.T) {
 		numWorkersLeft,
 		"4) Number of workers left were not correct",
 	)
+
+	dispatcher.DestroyWorkerPoolGlobal()
 }
 
 func TestDispatching(T *testing.T) {
 	assertion := assert.New(T)
-	dispatcher.InitWorkerPoolGlobal(numWorkers)
-	disp := dispatcher.NewDispatcher(0)
+	dispatcher.InitWorkerPoolGlobal(numWorkersTotal)
+	// Create one dispatcher
 	numWorkersTaken := 100
+	disp := dispatcher.NewDispatcher(0)
 	disp.Spawn(numWorkersTaken)
 	disp.Start()
+	// Dispatch jobs
 	sum := 0
 	receiver := make(chan bool, numWorkersTaken)
 	for i := 0; i < numWorkersTaken; i++ {
@@ -102,4 +106,6 @@ func TestDispatching(T *testing.T) {
 		sum++
 	}
 	assertion.Equal(numWorkersTaken, sum, "Incorrect number of job being dispatched")
+
+	dispatcher.DestroyWorkerPoolGlobal()
 }

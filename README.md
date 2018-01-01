@@ -20,7 +20,9 @@ A worker-pool job dispatcher inspired by the [Post: Handling 1 Million Requests 
           |              |     |              |
           ----------------     ----------------
 
-A worker pool is used to spawn and keep workers globally. One or more job dispatchers can be created by taking subsets of workers from it, and registering them in their local worker pools. Workers are recycled by global worker pool after dispatchers are finalized. Batches of jobs executed with different dispatchers can be either synchronous or asynchronous.
+A worker pool is used to spawn and keep workers globally. One or more job dispatchers can be created by taking subsets of workers from it, and registering them in their local worker pools. Workers are recycled by global worker pool after dispatchers are finalized. Batches of jobs executed by multiple dispatchers can be either synchronous or asynchronous.
+
+Note: a dispatcher is not supposed to be reused. Always create a new dispatcher for one spawn - finalize execution loop.
 
 ## How to use
 
@@ -33,11 +35,11 @@ A worker pool is used to spawn and keep workers globally. One or more job dispat
         disp := dispatcher.NewDispatcher(0)
         disp.Spawn(1000)
 
-3. Start listening to new jobs
+3. Start listening to new jobs.
 
         disp.Start()
 
-4. Dispatch jobs (dispatch() will block until at least one worker becomes available and takes the job)
+4. Dispatch jobs (dispatch() will block until at least one worker becomes available and takes the job).
 
         type myJob struct {
             // ...
@@ -49,7 +51,7 @@ A worker pool is used to spawn and keep workers globally. One or more job dispat
 
         disp.Dispatch(&myJob{...})
 
-5. Wait until all jobs are done and return workers back to the global worker pool
+5. Wait until all jobs are done and return workers back to the global worker pool.
 
         disp.Finalize()
 

@@ -8,70 +8,15 @@ import (
 )
 
 const (
-	initialized int = 0
-	ready       int = 1
-	listening   int = 2
+	isInitialized int = 0
+	isReady       int = 1
+	isListening   int = 2
+	isFinalized   int = 3
 )
 
 var workerPoolGlobal chan *_Worker
-var isInitialized bool
+var isGlobalWorkerPoolInitialized bool
 var mutex sync.Mutex
-
-// Job - A job can be given to a dispatcher to be allocated
-// to a worker
-type Job interface {
-	Do(worker Worker)
-}
-
-type quitJob struct {
-	wg *sync.WaitGroup
-}
-
-func (quitJob *quitJob) Do(worker Worker) {
-	if worker.IsActive() {
-		worker.recycle()
-	}
-	// Tell the dispatcher that the worker has been recycled
-	quitJob.wg.Done()
-}
-
-// Worker - A worker can only be created by the global worker pool
-// to execute jobs
-type Worker interface {
-	IsActive() bool
-	register(workerPool chan *_Worker)
-	recycle()
-}
-
-type _Worker struct {
-	stopped     bool
-	jobListener chan Job
-}
-
-func (worker *_Worker) IsActive() bool {
-	return !worker.stopped
-}
-
-func (worker *_Worker) recycle() {
-	close(worker.jobListener)
-	worker.stopped = true
-	// Push back to the global worker pool
-	workerPoolGlobal <- worker
-}
-
-func (worker *_Worker) register(workerPool chan *_Worker) {
-	worker.stopped = false
-	worker.jobListener = make(chan Job)
-
-	for !worker.stopped {
-		// Register itself in a dispatcher worker pool
-		workerPool <- worker
-
-		// Start listening to job queue
-		job := <-worker.jobListener
-		job.Do(worker)
-	}
-}
 
 // Dispatcher - A dispatcher takes workers from the global worker pool
 // and dispatch jobs. Multiple dispatchers can be created but only a
@@ -88,24 +33,25 @@ type _Dispatcher struct {
 	jobChan      chan Job
 	wg           sync.WaitGroup
 	numWorkers   int
-	closed       bool
 	timeInterval time.Duration
 	state        int
-}
-
-func (dispatcher *_Dispatcher) Dispatch(job Job) {
-	dispatcher.jobChan <- job
 }
 
 // Spawn - Block until the given number of workers are obtained from the
 // global worker pool
 func (dispatcher *_Dispatcher) Spawn(numWorkers int) {
+	if dispatcher.state != isInitialized {
+		panic(`Dispatcher is not in initialized state, Spawn() can only be called once
+			after creating a new dispatcher`)
+	}
+
 	numWorkersTotal := cap(workerPoolGlobal)
 	if numWorkers > numWorkersTotal {
 		panic(`Cannot spawn more workers than the number of created
 			workers in the global worker pool`)
 	}
 
+	dispatcher.jobChan = make(chan Job)
 	dispatcher.workerPool = make(chan *_Worker, numWorkers)
 	for i := 0; i < numWorkers; i++ {
 		// Take a worker from the global worker pool
@@ -116,21 +62,19 @@ func (dispatcher *_Dispatcher) Spawn(numWorkers int) {
 		dispatcher.numWorkers++
 	}
 
-	dispatcher.state = ready
+	dispatcher.state = isReady
 }
 
 // Start - Start another goroutine listening to jobs
 func (dispatcher *_Dispatcher) Start() {
-	if dispatcher.state != ready {
-		fmt.Println(`dispatcher.Spawn() must be called to obtain
+	if dispatcher.state != isReady {
+		panic(`Dispatcher is not ready. Spawn() must be called to obtain
 			workers before starting it`)
-		return
 	}
 
 	go func() {
-		for !dispatcher.closed {
+		for job := range dispatcher.jobChan {
 			worker := <-dispatcher.workerPool
-			job := <-dispatcher.jobChan
 			worker.jobListener <- job
 			if dispatcher.timeInterval > 0 && reflect.TypeOf(job).String() != "*dispatcher.quitJob" {
 				// Pause worker for a period of time as specified
@@ -138,22 +82,30 @@ func (dispatcher *_Dispatcher) Start() {
 			}
 		}
 
-		// Stop receiving more jobs
-		close(dispatcher.jobChan)
-		// Stop recycle workers
+		// Stop recycling workers
 		close(dispatcher.workerPool)
 	}()
 
-	dispatcher.state = listening
+	dispatcher.state = isListening
+}
+
+// Dispatch - Dispatching a job to its job listener. The job being dispatched
+// will be executed asynchronously
+func (dispatcher *_Dispatcher) Dispatch(job Job) {
+	if dispatcher.state != isListening {
+		panic(`Dispatcher is not in listening state. Start() must be called
+			to enable dispatcher to dispatch jobs`)
+	}
+
+	dispatcher.jobChan <- job
 }
 
 // Finalize - Block until all worker threads are popped out
 // of the pool and signaled with a quit command.
 func (dispatcher *_Dispatcher) Finalize() {
-	if dispatcher.state != listening {
-		fmt.Println(`dispatcher.Start() must be called to start
+	if dispatcher.state != isListening {
+		panic(`Dispatcher is not in listening state. Start() must be called to start
 			listening before finalizing it`)
-		return
 	}
 
 	dispatcher.wg.Add(dispatcher.numWorkers)
@@ -163,20 +115,20 @@ func (dispatcher *_Dispatcher) Finalize() {
 	}
 	// Block until all workers are recycled
 	dispatcher.wg.Wait()
+	// Stop receiving more jobs
+	close(dispatcher.jobChan)
 	// Stop listening
-	dispatcher.closed = true
-	dispatcher.state = initialized
+	dispatcher.state = isFinalized
 }
 
 // NewDispatcher - Return a new job dispatcher
 func NewDispatcher(timeInterval time.Duration) Dispatcher {
-	if !isInitialized {
+	if !isGlobalWorkerPoolInitialized {
 		panic(`Please call InitWorkerPoolGlobal() before creating
 			new dispatchers`)
 	}
 
 	return &_Dispatcher{
-		jobChan:      make(chan Job),
 		wg:           sync.WaitGroup{},
 		timeInterval: timeInterval,
 	}
@@ -188,17 +140,17 @@ func InitWorkerPoolGlobal(numWorkersTotal int) {
 	mutex.Lock()
 	defer mutex.Unlock()
 
-	if !isInitialized {
+	if !isGlobalWorkerPoolInitialized {
 		workerPoolGlobal = make(chan *_Worker, numWorkersTotal)
 		for i := 0; i < numWorkersTotal; i++ {
 			// Create a new worker
 			worker := _Worker{stopped: true}
 			workerPoolGlobal <- &worker
 		}
-		isInitialized = true
+		isGlobalWorkerPoolInitialized = true
+	} else {
+		fmt.Println("Global worker pool has been initialized before")
 	}
-
-	fmt.Println("Global worker pool has been initialized")
 }
 
 // DestroyWorkerPoolGlobal - Drain and close the global worker pool safely,
@@ -208,15 +160,15 @@ func DestroyWorkerPoolGlobal() {
 	defer mutex.Unlock()
 
 	numWorkersTotal := cap(workerPoolGlobal)
-	if isInitialized {
+	if isGlobalWorkerPoolInitialized {
 		for i := 0; i < numWorkersTotal; i++ {
 			<-workerPoolGlobal
 		}
 		close(workerPoolGlobal)
-		isInitialized = false
+		isGlobalWorkerPoolInitialized = false
+	} else {
+		fmt.Println("Global worker pool has been destroyed before")
 	}
-
-	fmt.Println("Global worker pool has been destroyed")
 }
 
 // GetNumWorkersAvail - Get number of workers can be used by
