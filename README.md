@@ -32,7 +32,7 @@ Note: a dispatcher is not supposed to be reused. Always create a new dispatcher 
 
 2. Create a job dispatcher giving a subset of workers from the global worker pool.
 
-        disp := dispatcher.NewDispatcher(0)
+        disp := dispatcher.NewDispatcher()
         disp.Spawn(1000)
 
 3. Start listening to new jobs.
