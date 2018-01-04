@@ -41,7 +41,7 @@ func TestSpawning(T *testing.T) {
 	assertion := assert.New(T)
 	dispatcher.InitWorkerPoolGlobal(numWorkersTotal)
 	// Create one dispatcher
-	disp := dispatcher.NewDispatcher(0)
+	disp := dispatcher.NewDispatcher()
 	numWorkersTaken := 100
 	disp.Spawn(numWorkersTaken)
 	disp.Start()
@@ -53,11 +53,12 @@ func TestSpawning(T *testing.T) {
 		"1) Number of workers left were not correct",
 	)
 	// Create another dispatcher
-	disp2 := dispatcher.NewDispatcher(0)
-	disp2.Spawn(numWorkersTaken)
+	numWorkersTaken2 := numWorkersLeftExpected
+	disp2 := dispatcher.NewDispatcher()
+	disp2.Spawn(numWorkersTaken2)
 	disp2.Start()
 	numWorkersLeft = dispatcher.GetNumWorkersAvail()
-	numWorkersLeftExpected -= numWorkersTaken
+	numWorkersLeftExpected -= numWorkersTaken2
 	assertion.Equal(
 		numWorkersLeftExpected,
 		numWorkersLeft,
@@ -75,7 +76,7 @@ func TestSpawning(T *testing.T) {
 	// Finalize the second dispatcher
 	disp2.Finalize()
 	numWorkersLeft = dispatcher.GetNumWorkersAvail()
-	numWorkersLeftExpected += numWorkersTaken
+	numWorkersLeftExpected += numWorkersTaken2
 	assertion.Equal(
 		numWorkersLeftExpected,
 		numWorkersLeft,
@@ -90,7 +91,7 @@ func TestDispatching(T *testing.T) {
 	dispatcher.InitWorkerPoolGlobal(numWorkersTotal)
 	// Create one dispatcher
 	numWorkersTaken := 100
-	disp := dispatcher.NewDispatcher(0)
+	disp := dispatcher.NewDispatcher()
 	disp.Spawn(numWorkersTaken)
 	disp.Start()
 	// Dispatch jobs
@@ -106,6 +107,57 @@ func TestDispatching(T *testing.T) {
 		sum++
 	}
 	assertion.Equal(numWorkersTaken, sum, "Incorrect number of job being dispatched")
+
+	dispatcher.DestroyWorkerPoolGlobal()
+}
+
+func TestMultiGoroutineDispatching(T *testing.T) {
+	assertion := assert.New(T)
+	dispatcher.InitWorkerPoolGlobal(numWorkersTotal)
+	numWorkersTakenTotal := numWorkersTotal + 100
+	numWorkersTaken1 := 500
+	numWorkersTaken2 := numWorkersTakenTotal - numWorkersTaken1
+	numJobs1 := numWorkersTaken1 + 100
+	numJobs2 := numWorkersTaken2 + 100
+	// Count number of jobs done
+	sum := 0
+	receiver1 := make(chan bool, numJobs1)
+	receiver2 := make(chan bool, numJobs2)
+
+	go func() {
+		// Create one dispatcher
+		disp := dispatcher.NewDispatcher()
+		disp.Spawn(numWorkersTaken1)
+		disp.Start()
+		// Dispatch jobs
+		for i := 0; i < numJobs1; i++ {
+			disp.Dispatch(&testJob{resultSender: receiver1})
+		}
+		disp.Finalize()
+		close(receiver1)
+	}()
+
+	go func() {
+		// Create one dispatcher
+		disp := dispatcher.NewDispatcher()
+		disp.Spawn(numWorkersTaken2)
+		disp.Start()
+		// Dispatch jobs
+		for i := 0; i < numJobs2; i++ {
+			disp.Dispatch(&testJob{resultSender: receiver2})
+		}
+		disp.Finalize()
+		close(receiver2)
+	}()
+
+	// Verify the number of jobs being done
+	for range receiver1 {
+		sum++
+	}
+	for range receiver2 {
+		sum++
+	}
+	assertion.Equal(numJobs1+numJobs2, sum, "Incorrect number of job being dispatched")
 
 	dispatcher.DestroyWorkerPoolGlobal()
 }

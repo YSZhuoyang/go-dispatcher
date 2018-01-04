@@ -2,9 +2,7 @@ package dispatcher
 
 import (
 	"fmt"
-	"reflect"
 	"sync"
-	"time"
 )
 
 const (
@@ -29,17 +27,19 @@ type Dispatcher interface {
 }
 
 type _Dispatcher struct {
-	workerPool   chan *_Worker
-	jobChan      chan Job
-	wg           sync.WaitGroup
-	numWorkers   int
-	timeInterval time.Duration
-	state        int
+	workerPool chan *_Worker
+	jobChan    chan Job
+	wg         sync.WaitGroup
+	numWorkers int
+	state      int
 }
 
 // Spawn - Block until the given number of workers are obtained from the
-// global worker pool
+// global worker pool. Note it can only be called by one goroutine at a time.
 func (dispatcher *_Dispatcher) Spawn(numWorkers int) {
+	mutex.Lock()
+	defer mutex.Unlock()
+
 	if dispatcher.state != isInitialized {
 		panic(`Dispatcher is not in initialized state, Spawn() can only be called once
 			after creating a new dispatcher`)
@@ -76,10 +76,6 @@ func (dispatcher *_Dispatcher) Start() {
 		for job := range dispatcher.jobChan {
 			worker := <-dispatcher.workerPool
 			worker.jobListener <- job
-			if dispatcher.timeInterval > 0 && reflect.TypeOf(job).String() != "*dispatcher.quitJob" {
-				// Pause worker for a period of time as specified
-				time.Sleep(time.Duration(dispatcher.timeInterval * time.Millisecond))
-			}
 		}
 
 		// Stop recycling workers
@@ -122,16 +118,13 @@ func (dispatcher *_Dispatcher) Finalize() {
 }
 
 // NewDispatcher - Return a new job dispatcher
-func NewDispatcher(timeInterval time.Duration) Dispatcher {
+func NewDispatcher() Dispatcher {
 	if !isGlobalWorkerPoolInitialized {
 		panic(`Please call InitWorkerPoolGlobal() before creating
 			new dispatchers`)
 	}
 
-	return &_Dispatcher{
-		wg:           sync.WaitGroup{},
-		timeInterval: timeInterval,
-	}
+	return &_Dispatcher{wg: sync.WaitGroup{}}
 }
 
 // InitWorkerPoolGlobal - Initialize the global worker pool safely and
