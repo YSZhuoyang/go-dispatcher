@@ -30,7 +30,7 @@ type Dispatcher interface {
 
 type _Dispatcher struct {
 	workerPool chan *_Worker
-	jobChan    chan Job
+	jobChan    chan delayedJob
 	wg         sync.WaitGroup
 	numWorkers int
 	state      int
@@ -53,7 +53,7 @@ func (dispatcher *_Dispatcher) Spawn(numWorkers int) {
 			workers in the global worker pool`)
 	}
 
-	dispatcher.jobChan = make(chan Job)
+	dispatcher.jobChan = make(chan delayedJob)
 	dispatcher.workerPool = make(chan *_Worker, numWorkers)
 	for i := 0; i < numWorkers; i++ {
 		// Take a worker from the global worker pool
@@ -75,9 +75,10 @@ func (dispatcher *_Dispatcher) Start() {
 	}
 
 	go func() {
-		for job := range dispatcher.jobChan {
+		for delayedJob := range dispatcher.jobChan {
+			time.Sleep(delayedJob.delayPeriod)
 			worker := <-dispatcher.workerPool
-			worker.jobListener <- job
+			worker.jobListener <- delayedJob.job
 		}
 
 		// Stop recycling workers
@@ -95,19 +96,18 @@ func (dispatcher *_Dispatcher) Dispatch(job Job) {
 			to enable dispatcher to dispatch jobs`)
 	}
 
-	dispatcher.jobChan <- job
+	dispatcher.jobChan <- delayedJob{job: job}
 }
 
-// DispatchWithDelay - Similar to Dispatch() except job dispatching is delayed for
-// a specified period of time
+// DispatchWithDelay - Similar to Dispatch() except dispatched job is delayed for
+// a specified period of time before getting executed
 func (dispatcher *_Dispatcher) DispatchWithDelay(job Job, delayPeriod time.Duration) {
 	if dispatcher.state != isListening {
 		panic(`Dispatcher is not in listening state. Start() must be called
 			to enable dispatcher to dispatch jobs`)
 	}
 
-	time.Sleep(delayPeriod)
-	dispatcher.jobChan <- job
+	dispatcher.jobChan <- delayedJob{job: job, delayPeriod: delayPeriod}
 }
 
 // Finalize - Block until all worker threads are popped out
