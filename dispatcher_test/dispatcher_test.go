@@ -2,6 +2,7 @@ package dispatcher_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/YSZhuoyang/go-dispatcher/dispatcher"
 	"github.com/stretchr/testify/assert"
@@ -108,6 +109,29 @@ func TestDispatching(T *testing.T) {
 	}
 	assertion.Equal(numWorkersTaken, sum, "Incorrect number of job being dispatched")
 
+	dispatcher.DestroyWorkerPoolGlobal()
+}
+
+func TestDispatchingWithDelay(T *testing.T) {
+	assertion := assert.New(T)
+	dispatcher.InitWorkerPoolGlobal(numWorkersTotal)
+	// Create one dispatcher
+	numWorkersTaken := 100
+	numJobs := 100
+	disp := dispatcher.NewDispatcher()
+	disp.Spawn(numWorkersTaken)
+	disp.Start()
+
+	receiver := make(chan bool, numJobs)
+	start := time.Now()
+	// Dispatch jobs with delay
+	for i := 0; i < numJobs; i++ {
+		disp.DispatchWithDelay(&testJob{resultSender: receiver}, 1000)
+	}
+	elapse := time.Since(start)
+	assertion.True(elapse >= 100000, "Job dispatching was not delayed with the correct time period")
+
+	disp.Finalize()
 	dispatcher.DestroyWorkerPoolGlobal()
 }
 

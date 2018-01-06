@@ -3,6 +3,7 @@ package dispatcher
 import (
 	"fmt"
 	"sync"
+	"time"
 )
 
 const (
@@ -23,6 +24,7 @@ type Dispatcher interface {
 	Spawn(numWorkers int)
 	Start()
 	Dispatch(job Job)
+	DispatchWithDelay(job Job, delayPeriod time.Duration)
 	Finalize()
 }
 
@@ -93,6 +95,18 @@ func (dispatcher *_Dispatcher) Dispatch(job Job) {
 			to enable dispatcher to dispatch jobs`)
 	}
 
+	dispatcher.jobChan <- job
+}
+
+// DispatchWithDelay - Similar to Dispatch() except job dispatching is delayed for
+// a specified period of time
+func (dispatcher *_Dispatcher) DispatchWithDelay(job Job, delayPeriod time.Duration) {
+	if dispatcher.state != isListening {
+		panic(`Dispatcher is not in listening state. Start() must be called
+			to enable dispatcher to dispatch jobs`)
+	}
+
+	time.Sleep(delayPeriod)
 	dispatcher.jobChan <- job
 }
 
