@@ -19,9 +19,7 @@ type quitJob struct {
 }
 
 func (quitJob *quitJob) Do(worker Worker) {
-	if worker.IsActive() {
-		worker.recycle()
-	}
+	worker.recycle()
 	// Tell the dispatcher that the worker has been recycled
 	quitJob.wg.Done()
 }

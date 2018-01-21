@@ -138,8 +138,8 @@ func TestDispatchingWithDelay(T *testing.T) {
 func TestMultiGoroutineDispatching(T *testing.T) {
 	assertion := assert.New(T)
 	dispatcher.InitWorkerPoolGlobal(numWorkersTotal)
-	numWorkersTakenTotal := numWorkersTotal + 100
-	numWorkersTaken1 := 500
+	numWorkersTakenTotal := numWorkersTotal + 900
+	numWorkersTaken1 := 950
 	numWorkersTaken2 := numWorkersTakenTotal - numWorkersTaken1
 	numJobs1 := numWorkersTaken1 + 100
 	numJobs2 := numWorkersTaken2 + 100

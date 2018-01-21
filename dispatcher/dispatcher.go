@@ -150,9 +150,7 @@ func InitWorkerPoolGlobal(numWorkersTotal int) {
 	if !isGlobalWorkerPoolInitialized {
 		workerPoolGlobal = make(chan *_Worker, numWorkersTotal)
 		for i := 0; i < numWorkersTotal; i++ {
-			// Create a new worker
-			worker := _Worker{stopped: true}
-			workerPoolGlobal <- &worker
+			workerPoolGlobal <- &_Worker{}
 		}
 		isGlobalWorkerPoolInitialized = true
 	} else {
