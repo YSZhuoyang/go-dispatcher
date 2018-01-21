@@ -4,6 +4,8 @@ language: go
 go:
   - master
 
-script:
+before_script:
   - go get -t -u github.com/stretchr/testify
+
+script:
   - go test ./dispatcher_test
