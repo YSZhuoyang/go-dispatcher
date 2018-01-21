@@ -1,7 +1,8 @@
 
 language: go
-  go:
-    - master
+
+go:
+  - master
 
 script:
   - go get -t -u github.com/stretchr/testify
