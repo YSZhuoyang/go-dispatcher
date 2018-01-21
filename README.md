@@ -9,19 +9,19 @@ A worker-pool job dispatcher inspired by the [Post: Handling 1 Million Requests 
 
 ## How it works
 
-                -------------------------
-                |  global worker pool   |
-                |                       |
-                |                       |
-                -------------------------
-                 | /|\              | /|\
-           get   |  | return        |  |
-         workers |  | workers       |  |
-                \|/ |              \|/ |
-          ----------------     ----------------
-          |  dispatcher  |     |  dispatcher  |
-          |              |     |              |
-          ----------------     ----------------
+                    -------------------------
+                    |  global worker pool   |
+                    |                       |
+                    |                       |
+                    -------------------------
+                     | /|\              | /|\
+               get   |  | return        |  |
+             workers |  | workers       |  |
+                    \|/ |              \|/ |
+              ----------------     ----------------
+      jobs -> |  dispatcher  |     |  dispatcher  | <- jobs
+              |              |     |              |
+              ----------------     ----------------
 
 A worker pool is used to spawn and keep workers globally. One or more job dispatchers can be created by taking subsets of workers from it, and registering them in their local worker pools. Workers are recycled by global worker pool after dispatchers are finalized. Batches of jobs executed by multiple dispatchers can be either synchronous or asynchronous.
 
