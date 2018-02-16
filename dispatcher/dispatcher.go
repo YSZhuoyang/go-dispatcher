@@ -1,3 +1,5 @@
+// Package dispatcher provides capabilities of limiting the total number of goroutines
+// and easily managing the dependency of concurrent executions.
 package dispatcher
 
 import (
@@ -17,14 +19,25 @@ var workerPoolGlobal chan *_Worker
 var isGlobalWorkerPoolInitialized bool
 var mutex sync.Mutex
 
-// Dispatcher - A dispatcher takes workers from the global worker pool
-// and dispatch jobs. Multiple dispatchers can be created but only a
-// limited number of workers can be used.
+// Dispatcher takes workers from the global worker pool and dispatches
+// jobs to workers. Multiple dispatchers can be created but only a limited
+// number of workers can be used.
 type Dispatcher interface {
+	// Spawn takes a given number of workers from the global worker pool, and registers
+	// them in the dispatcher worker pool. Note that it blocks other dispatchers from
+	// calling it, can only be called once per dispatcher.
 	Spawn(numWorkers int)
+	// Start a for loop receving new jobs dispatched and giving them to any workers
+	// available. Note that it can only be called once per dispatcher.
 	Start()
+	// Dispatch gives a job to a worker at a time, and blocks until at least one worker
+	// becomes available. Each job dispatched is handled by a separate goroutine.
 	Dispatch(job Job)
+	// DispatchWithDelay behaves similarly to Dispatch, except it is delayed for a given
+	// period of time before the job is allocated to a worker.
 	DispatchWithDelay(job Job, delayPeriod time.Duration)
+	// Finalize can only be called once per dispatcher. It blocks until all jobs
+	// dispatched are finished and all workers are returned to the global worker pool.
 	Finalize()
 }
 
@@ -36,8 +49,6 @@ type _Dispatcher struct {
 	state      int
 }
 
-// Spawn - Block until the given number of workers are obtained from the
-// global worker pool. Note it can only be called by one goroutine at a time.
 func (dispatcher *_Dispatcher) Spawn(numWorkers int) {
 	mutex.Lock()
 	defer mutex.Unlock()
@@ -67,7 +78,6 @@ func (dispatcher *_Dispatcher) Spawn(numWorkers int) {
 	dispatcher.state = isReady
 }
 
-// Start - Start another goroutine listening to jobs
 func (dispatcher *_Dispatcher) Start() {
 	if dispatcher.state != isReady {
 		panic(`Dispatcher is not ready. Spawn() must be called to obtain
@@ -88,8 +98,6 @@ func (dispatcher *_Dispatcher) Start() {
 	dispatcher.state = isListening
 }
 
-// Dispatch - Dispatching a job to its job listener. The job being dispatched
-// will be executed asynchronously
 func (dispatcher *_Dispatcher) Dispatch(job Job) {
 	if dispatcher.state != isListening {
 		panic(`Dispatcher is not in listening state. Start() must be called
@@ -99,8 +107,6 @@ func (dispatcher *_Dispatcher) Dispatch(job Job) {
 	dispatcher.jobChan <- delayedJob{job: job}
 }
 
-// DispatchWithDelay - Similar to Dispatch() except dispatched job is delayed for
-// a specified period of time before getting executed
 func (dispatcher *_Dispatcher) DispatchWithDelay(job Job, delayPeriod time.Duration) {
 	if dispatcher.state != isListening {
 		panic(`Dispatcher is not in listening state. Start() must be called
@@ -110,8 +116,6 @@ func (dispatcher *_Dispatcher) DispatchWithDelay(job Job, delayPeriod time.Durat
 	dispatcher.jobChan <- delayedJob{job: job, delayPeriod: delayPeriod}
 }
 
-// Finalize - Block until all worker threads are popped out
-// of the pool and signaled with a quit command.
 func (dispatcher *_Dispatcher) Finalize() {
 	if dispatcher.state != isListening {
 		panic(`Dispatcher is not in listening state. Start() must be called to start
@@ -131,7 +135,7 @@ func (dispatcher *_Dispatcher) Finalize() {
 	dispatcher.state = isFinalized
 }
 
-// NewDispatcher - Return a new job dispatcher
+// NewDispatcher returns a new job dispatcher.
 func NewDispatcher() Dispatcher {
 	if !isGlobalWorkerPoolInitialized {
 		panic(`Please call InitWorkerPoolGlobal() before creating
@@ -141,8 +145,8 @@ func NewDispatcher() Dispatcher {
 	return &_Dispatcher{wg: sync.WaitGroup{}}
 }
 
-// InitWorkerPoolGlobal - Initialize the global worker pool safely and
-// spawn a given number of workers
+// InitWorkerPoolGlobal initializes the global worker pool safely and
+// creates a given number of workers
 func InitWorkerPoolGlobal(numWorkersTotal int) {
 	mutex.Lock()
 	defer mutex.Unlock()
@@ -158,8 +162,8 @@ func InitWorkerPoolGlobal(numWorkersTotal int) {
 	}
 }
 
-// DestroyWorkerPoolGlobal - Drain and close the global worker pool safely,
-// which will block until all workers are popped out (all dispatchers are finished)
+// DestroyWorkerPoolGlobal drains and closes the global worker pool safely,
+// which blocks until all workers are popped out (all dispatchers are finished)
 func DestroyWorkerPoolGlobal() {
 	mutex.Lock()
 	defer mutex.Unlock()
@@ -176,8 +180,8 @@ func DestroyWorkerPoolGlobal() {
 	}
 }
 
-// GetNumWorkersAvail - Get number of workers can be used by
-// a new dispatcher to spawn
+// GetNumWorkersAvail returns the number of workers that can be allocated to
+// a new dispatcher
 func GetNumWorkersAvail() int {
 	return len(workerPoolGlobal)
 }

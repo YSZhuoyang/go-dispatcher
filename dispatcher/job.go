@@ -3,7 +3,7 @@ package dispatcher
 import "sync"
 import "time"
 
-// Job - A job can be given to a dispatcher to be allocated
+// Job can be given to a dispatcher to be allocated
 // to a worker
 type Job interface {
 	Do(worker Worker)

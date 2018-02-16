@@ -1,7 +1,7 @@
 package dispatcher
 
-// Worker - A worker can only be created by the global worker pool
-// to execute jobs
+// Worker is registered in a worker pool to listen to jobs and execute them.
+// It can only be created / destroyed by the global worker pool.
 type Worker interface {
 	register(workerPool chan *_Worker)
 	recycle()
@@ -12,7 +12,7 @@ type _Worker struct {
 	jobListener chan Job
 }
 
-// recycle - it is called when a quiteJob is executed,
+// recycle is called when a quiteJob is executed,
 // to set isActive to false to stop listening to
 // new jobs
 func (worker *_Worker) recycle() {
