@@ -46,6 +46,7 @@ type _Dispatcher struct {
 	workerPool chan *_Worker
 	jobChan    chan delayedJob
 	wg         sync.WaitGroup
+	mutex      sync.Mutex
 	numWorkers int
 	state      int
 }
@@ -80,6 +81,9 @@ func (dispatcher *_Dispatcher) Spawn(numWorkers int) {
 }
 
 func (dispatcher *_Dispatcher) Start() {
+	dispatcher.mutex.Lock()
+	defer dispatcher.mutex.Unlock()
+
 	if dispatcher.state != isReady {
 		panic(`Dispatcher is not ready. Spawn() must be called to obtain
 			workers before starting it`)
@@ -118,6 +122,9 @@ func (dispatcher *_Dispatcher) DispatchWithDelay(job Job, delayPeriod time.Durat
 }
 
 func (dispatcher *_Dispatcher) Finalize() {
+	dispatcher.mutex.Lock()
+	defer dispatcher.mutex.Unlock()
+
 	if dispatcher.state != isListening {
 		panic(`Dispatcher is not in listening state. Start() must be called to start
 			listening before finalizing it`)
