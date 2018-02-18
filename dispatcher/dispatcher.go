@@ -25,19 +25,20 @@ var mutex sync.Mutex
 type Dispatcher interface {
 	// Spawn takes a given number of workers from the global worker pool, and registers
 	// them in the dispatcher worker pool. Note that it blocks other dispatchers from
-	// calling it, can only be called once per dispatcher.
+	// calling it, and can only be called once per dispatcher.
 	Spawn(numWorkers int)
 	// Start a for loop receving new jobs dispatched and giving them to any workers
 	// available. Note that it can only be called once per dispatcher.
 	Start()
 	// Dispatch gives a job to a worker at a time, and blocks until at least one worker
-	// becomes available. Each job dispatched is handled by a separate goroutine.
+	// becomes available. Each job dispatched is handled by a separate goroutine. Note
+	// that it can only be called once per dispatcher.
 	Dispatch(job Job)
 	// DispatchWithDelay behaves similarly to Dispatch, except it is delayed for a given
 	// period of time before the job is allocated to a worker.
 	DispatchWithDelay(job Job, delayPeriod time.Duration)
-	// Finalize can only be called once per dispatcher. It blocks until all jobs
-	// dispatched are finished and all workers are returned to the global worker pool.
+	// Finalize blocks until all jobs dispatched are finished and all workers are returned
+	// to the global worker pool. Note that it can only be called once per dispatcher.
 	Finalize()
 }
 
