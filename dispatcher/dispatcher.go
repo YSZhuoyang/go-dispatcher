@@ -31,8 +31,7 @@ type Dispatcher interface {
 	// available. Note that it can only be called once per dispatcher.
 	Start()
 	// Dispatch gives a job to a worker at a time, and blocks until at least one worker
-	// becomes available. Each job dispatched is handled by a separate goroutine. Note
-	// that it can only be called once per dispatcher.
+	// becomes available. Each job dispatched is handled by a separate goroutine.
 	Dispatch(job Job)
 	// DispatchWithDelay behaves similarly to Dispatch, except it is delayed for a given
 	// period of time before the job is allocated to a worker.
