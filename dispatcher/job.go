@@ -13,11 +13,13 @@ type _DelayedJob struct {
 	delayPeriod time.Duration
 }
 
+type _QuitSignal struct{}
+
 type _QuitJob struct {
-	quitSignChan chan bool
+	quitSignChan chan _QuitSignal
 }
 
 func (quitJob *_QuitJob) Do() {
 	// Tell the dispatcher that all jobs have been dispatched
-	quitJob.quitSignChan <- true
+	quitJob.quitSignChan <- _QuitSignal{}
 }

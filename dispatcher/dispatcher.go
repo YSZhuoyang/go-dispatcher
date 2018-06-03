@@ -80,7 +80,7 @@ func (dispatcher *_Dispatcher) Start(numWorkers int) {
 			time.Sleep(delayedJob.delayPeriod)
 			worker := <-dispatcher.workerPool
 			go func(job Job, worker *_Worker) {
-				worker.do(job.Do)
+				job.Do()
 				// Return it back to the dispatcher worker pool
 				dispatcher.workerPool <- worker
 			}(delayedJob.job, worker)
@@ -126,7 +126,7 @@ func (dispatcher *_Dispatcher) Finalize() {
 			listening before finalizing it`)
 	}
 
-	quitSignChan := make(chan bool)
+	quitSignChan := make(chan _QuitSignal)
 	// Send a quit quit signal after all tasks are dispatched
 	dispatcher.jobListener <- _DelayedJob{job: &_QuitJob{quitSignChan: quitSignChan}}
 	<-quitSignChan
