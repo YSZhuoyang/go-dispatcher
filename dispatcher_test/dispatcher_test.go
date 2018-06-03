@@ -14,7 +14,7 @@ type testJob struct {
 	resultSender chan bool
 }
 
-func (job *testJob) Do(worker dispatcher.Worker) {
+func (job *testJob) Do() {
 	job.resultSender <- true
 }
 
@@ -38,14 +38,13 @@ func TestInitAndDestroyWorkerPool(T *testing.T) {
 	)
 }
 
-func TestSpawning(T *testing.T) {
+func TestStartingDispatchers(T *testing.T) {
 	assertion := assert.New(T)
 	dispatcher.InitWorkerPoolGlobal(numWorkersTotal)
 	// Create one dispatcher
 	disp := dispatcher.NewDispatcher()
 	numWorkersTaken := 100
-	disp.Spawn(numWorkersTaken)
-	disp.Start()
+	disp.Start(numWorkersTaken)
 	numWorkersLeft := dispatcher.GetNumWorkersAvail()
 	numWorkersLeftExpected := numWorkersTotal - numWorkersTaken
 	assertion.Equal(
@@ -56,8 +55,7 @@ func TestSpawning(T *testing.T) {
 	// Create another dispatcher
 	numWorkersTaken2 := numWorkersLeftExpected
 	disp2 := dispatcher.NewDispatcher()
-	disp2.Spawn(numWorkersTaken2)
-	disp2.Start()
+	disp2.Start(numWorkersTaken2)
 	numWorkersLeft = dispatcher.GetNumWorkersAvail()
 	numWorkersLeftExpected -= numWorkersTaken2
 	assertion.Equal(
@@ -87,14 +85,13 @@ func TestSpawning(T *testing.T) {
 	dispatcher.DestroyWorkerPoolGlobal()
 }
 
-func TestDispatching(T *testing.T) {
+func TestDispatchingJobs(T *testing.T) {
 	assertion := assert.New(T)
 	dispatcher.InitWorkerPoolGlobal(numWorkersTotal)
 	// Create one dispatcher
 	numWorkersTaken := 100
 	disp := dispatcher.NewDispatcher()
-	disp.Spawn(numWorkersTaken)
-	disp.Start()
+	disp.Start(numWorkersTaken)
 	// Dispatch jobs
 	sum := 0
 	receiver := make(chan bool, numWorkersTaken)
@@ -112,15 +109,14 @@ func TestDispatching(T *testing.T) {
 	dispatcher.DestroyWorkerPoolGlobal()
 }
 
-func TestDispatchingWithDelay(T *testing.T) {
+func TestDispatchingJobsWithDelay(T *testing.T) {
 	assertion := assert.New(T)
 	dispatcher.InitWorkerPoolGlobal(numWorkersTotal)
 	// Create one dispatcher
 	numWorkersTaken := 100
 	numJobs := 100
 	disp := dispatcher.NewDispatcher()
-	disp.Spawn(numWorkersTaken)
-	disp.Start()
+	disp.Start(numWorkersTaken)
 
 	receiver := make(chan bool, numJobs)
 	start := time.Now()
@@ -135,7 +131,7 @@ func TestDispatchingWithDelay(T *testing.T) {
 	dispatcher.DestroyWorkerPoolGlobal()
 }
 
-func TestMultiGoroutineDispatching(T *testing.T) {
+func TestMultiGoroutineDispatchingJobs(T *testing.T) {
 	assertion := assert.New(T)
 	dispatcher.InitWorkerPoolGlobal(numWorkersTotal)
 	numWorkersTakenTotal := numWorkersTotal + 900
@@ -151,8 +147,7 @@ func TestMultiGoroutineDispatching(T *testing.T) {
 	go func() {
 		// Create one dispatcher
 		disp := dispatcher.NewDispatcher()
-		disp.Spawn(numWorkersTaken1)
-		disp.Start()
+		disp.Start(numWorkersTaken1)
 		// Dispatch jobs
 		for i := 0; i < numJobs1; i++ {
 			disp.Dispatch(&testJob{resultSender: receiver1})
@@ -164,8 +159,7 @@ func TestMultiGoroutineDispatching(T *testing.T) {
 	go func() {
 		// Create one dispatcher
 		disp := dispatcher.NewDispatcher()
-		disp.Spawn(numWorkersTaken2)
-		disp.Start()
+		disp.Start(numWorkersTaken2)
 		// Dispatch jobs
 		for i := 0; i < numJobs2; i++ {
 			disp.Dispatch(&testJob{resultSender: receiver2})

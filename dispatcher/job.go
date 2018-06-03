@@ -1,25 +1,23 @@
 package dispatcher
 
-import "sync"
 import "time"
 
-// Job can be given to a dispatcher to be allocated
-// to a worker
+// Job defines a task, which is given to a dispatcher to be executed
+// by a worker with a separate goroutine
 type Job interface {
-	Do(worker Worker)
+	Do()
 }
 
-type delayedJob struct {
+type _DelayedJob struct {
 	job         Job
 	delayPeriod time.Duration
 }
 
-type quitJob struct {
-	wg *sync.WaitGroup
+type _QuitJob struct {
+	quitSignChan chan bool
 }
 
-func (quitJob *quitJob) Do(worker Worker) {
-	worker.recycle()
-	// Tell the dispatcher that the worker has been recycled
-	quitJob.wg.Done()
+func (quitJob *_QuitJob) Do() {
+	// Tell the dispatcher that all jobs have been dispatched
+	quitJob.quitSignChan <- true
 }

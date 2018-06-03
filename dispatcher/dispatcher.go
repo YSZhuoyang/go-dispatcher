@@ -11,8 +11,7 @@ import (
 const (
 	isInitialized int = 0
 	isReady       int = 1
-	isListening   int = 2
-	isFinalized   int = 3
+	isFinalized   int = 2
 )
 
 var workerPoolGlobal chan *_Worker
@@ -23,13 +22,11 @@ var mutex sync.Mutex
 // jobs to workers. Multiple dispatchers can be created but only a limited
 // number of workers can be used.
 type Dispatcher interface {
-	// Spawn takes a given number of workers from the global worker pool, and registers
-	// them in the dispatcher worker pool. Note that it blocks other dispatchers from
-	// calling it, and can only be called once per dispatcher.
-	Spawn(numWorkers int)
-	// Start a for loop receving new jobs dispatched and giving them to any workers
-	// available. Note that it can only be called once per dispatcher.
-	Start()
+	// Start takes a given number of workers from the global worker pool, and registers
+	// them in the dispatcher worker pool. Then it starts a for loop receving new jobs
+	// dispatched and giving them to any workers available. Note that it blocks other
+	// dispatchers from calling it, and can only be called once per dispatcher.
+	Start(numWorkers int)
 	// Dispatch gives a job to a worker at a time, and blocks until at least one worker
 	// becomes available. Each job dispatched is handled by a separate goroutine.
 	Dispatch(job Job)
@@ -42,102 +39,104 @@ type Dispatcher interface {
 }
 
 type _Dispatcher struct {
-	workerPool chan *_Worker
-	jobChan    chan delayedJob
-	wg         sync.WaitGroup
-	mutex      sync.Mutex
-	numWorkers int
-	state      int
+	workerPool  chan *_Worker
+	jobListener chan _DelayedJob
+	mutex       sync.Mutex
+	numWorkers  int
+	state       int
 }
 
-func (dispatcher *_Dispatcher) Spawn(numWorkers int) {
+func (dispatcher *_Dispatcher) Start(numWorkers int) {
 	mutex.Lock()
 	defer mutex.Unlock()
+	dispatcher.mutex.Lock()
+	defer dispatcher.mutex.Unlock()
 
 	if dispatcher.state != isInitialized {
-		panic(`Dispatcher is not in initialized state, Spawn() can only be called once
+		panic(`Dispatcher is not in initialized state, Start() can only be called once
 			after creating a new dispatcher`)
 	}
 
 	numWorkersTotal := cap(workerPoolGlobal)
 	if numWorkers > numWorkersTotal {
-		panic(`Cannot spawn more workers than the number of created
+		panic(`Cannot obtain workers more than the number of created
 			workers in the global worker pool`)
 	}
 
-	dispatcher.jobChan = make(chan delayedJob)
+	dispatcher.jobListener = make(chan _DelayedJob)
 	dispatcher.workerPool = make(chan *_Worker, numWorkers)
 	for i := 0; i < numWorkers; i++ {
 		// Take a worker from the global worker pool
 		worker := <-workerPoolGlobal
 
 		// Register the worker into its local worker pool
-		go worker.register(dispatcher.workerPool)
+		worker.isActive = true
+		dispatcher.workerPool <- worker
 		dispatcher.numWorkers++
 	}
 
-	dispatcher.state = isReady
-}
-
-func (dispatcher *_Dispatcher) Start() {
-	dispatcher.mutex.Lock()
-	defer dispatcher.mutex.Unlock()
-
-	if dispatcher.state != isReady {
-		panic(`Dispatcher is not ready. Spawn() must be called to obtain
-			workers before starting it`)
-	}
-
 	go func() {
-		for delayedJob := range dispatcher.jobChan {
+		for delayedJob := range dispatcher.jobListener {
 			time.Sleep(delayedJob.delayPeriod)
 			worker := <-dispatcher.workerPool
-			worker.jobListener <- delayedJob.job
+			go func(job Job, worker *_Worker) {
+				worker.do(job.Do)
+				// Return it back to the dispatcher worker pool
+				dispatcher.workerPool <- worker
+			}(delayedJob.job, worker)
 		}
 
 		// Stop recycling workers
 		close(dispatcher.workerPool)
 	}()
 
-	dispatcher.state = isListening
+	dispatcher.state = isReady
 }
 
 func (dispatcher *_Dispatcher) Dispatch(job Job) {
-	if dispatcher.state != isListening {
-		panic(`Dispatcher is not in listening state. Start() must be called
+	dispatcher.mutex.Lock()
+	defer dispatcher.mutex.Unlock()
+
+	if dispatcher.state != isReady {
+		panic(`Dispatcher is not in ready state. Start() must be called
 			to enable dispatcher to dispatch jobs`)
 	}
 
-	dispatcher.jobChan <- delayedJob{job: job}
+	dispatcher.jobListener <- _DelayedJob{job: job}
 }
 
 func (dispatcher *_Dispatcher) DispatchWithDelay(job Job, delayPeriod time.Duration) {
-	if dispatcher.state != isListening {
-		panic(`Dispatcher is not in listening state. Start() must be called
+	dispatcher.mutex.Lock()
+	defer dispatcher.mutex.Unlock()
+
+	if dispatcher.state != isReady {
+		panic(`Dispatcher is not in ready state. Start() must be called
 			to enable dispatcher to dispatch jobs`)
 	}
 
-	dispatcher.jobChan <- delayedJob{job: job, delayPeriod: delayPeriod}
+	dispatcher.jobListener <- _DelayedJob{job: job, delayPeriod: delayPeriod}
 }
 
 func (dispatcher *_Dispatcher) Finalize() {
 	dispatcher.mutex.Lock()
 	defer dispatcher.mutex.Unlock()
 
-	if dispatcher.state != isListening {
-		panic(`Dispatcher is not in listening state. Start() must be called to start
+	if dispatcher.state != isReady {
+		panic(`Dispatcher is not in ready state. Start() must be called to start
 			listening before finalizing it`)
 	}
 
-	dispatcher.wg.Add(dispatcher.numWorkers)
-	// Send a quit job to each worker
+	quitSignChan := make(chan bool)
+	// Send a quit quit signal after all tasks are dispatched
+	dispatcher.jobListener <- _DelayedJob{job: &_QuitJob{quitSignChan: quitSignChan}}
+	<-quitSignChan
+	// Start recycling workers
 	for i := 0; i < dispatcher.numWorkers; i++ {
-		dispatcher.Dispatch(&quitJob{wg: &dispatcher.wg})
+		worker := <-dispatcher.workerPool
+		worker.recycle()
 	}
-	// Block until all workers are recycled
-	dispatcher.wg.Wait()
 	// Stop receiving more jobs
-	close(dispatcher.jobChan)
+	close(dispatcher.jobListener)
 	// Stop listening
 	dispatcher.state = isFinalized
 }
@@ -149,7 +148,7 @@ func NewDispatcher() Dispatcher {
 			new dispatchers`)
 	}
 
-	return &_Dispatcher{wg: sync.WaitGroup{}}
+	return &_Dispatcher{}
 }
 
 // InitWorkerPoolGlobal initializes the global worker pool safely and
