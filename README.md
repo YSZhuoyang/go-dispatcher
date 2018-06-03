@@ -26,7 +26,7 @@ A worker-pool job dispatcher inspired by the [Post: Handling 1 Million Requests 
 
 A worker pool is used to spawn and keep workers globally. One or more job dispatchers can be created by taking subsets of workers from it, and registering them in their local worker pools. Workers are recycled by global worker pool after dispatchers are finalized. Batches of jobs executed by multiple dispatchers can be either synchronous or asynchronous.
 
-Note: a dispatcher is not supposed to be reused. Always create a new dispatcher for one spawn - finalize execution loop.
+Note: a dispatcher is not supposed to be reused. Always create a new dispatcher for one start - finalize execution cycle.
 
 ## How to use
 
@@ -34,31 +34,27 @@ Note: a dispatcher is not supposed to be reused. Always create a new dispatcher 
 
         dispatcher.InitWorkerPoolGlobal(100000)
 
-2. Create a job dispatcher giving a subset of workers from the global worker pool.
+2. Create a job dispatcher giving a subset of workers from the global worker pool, and start listening to new jobs.
 
         disp := dispatcher.NewDispatcher()
-        disp.Spawn(1000)
+        disp.Start(1000)
 
-3. Start listening to new jobs.
-
-        disp.Start()
-
-4. Dispatch jobs (dispatch() will block until at least one worker becomes available and takes the job).
+3. Dispatch jobs (dispatch() will block until at least one worker becomes available and takes the job).
 
         type myJob struct {
             // ...
         }
 
-        func (job *myJob) Do(worker dispatcher.Worker) {
+        func (job *myJob) Do() {
             // Do something ...
         }
 
         disp.Dispatch(&myJob{...})
 
-5. Wait until all jobs are done and return workers back to the global worker pool.
+4. Wait until all jobs are done and return workers back to the global worker pool.
 
         disp.Finalize()
 
-6. Optional: wait until all job dispatchers are finalized and destroy the global worker pool.
+5. Optional: wait until all job dispatchers are finalized and destroy the global worker pool.
 
         dispatcher.DestroyWorkerPoolGlobal()
