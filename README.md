@@ -30,6 +30,10 @@ Note: a dispatcher is not supposed to be reused. Always create a new dispatcher 
 
 ## How to use
 
+1. Download and import package.
+
+        go get github.com/YSZhuoyang/go-dispatcher/dispatcher
+
 1. Initialize a global worker pool with a number of workers.
 
         dispatcher.InitWorkerPoolGlobal(100000)
