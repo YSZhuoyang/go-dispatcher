@@ -32,18 +32,18 @@ Note: a dispatcher is not supposed to be reused. Always create a new dispatcher 
 
 1. Download and import package.
 
-        go get github.com/YSZhuoyang/go-dispatcher/dispatcher
+        go get -u github.com/YSZhuoyang/go-dispatcher/dispatcher
 
-1. Initialize a global worker pool with a number of workers.
+2. Initialize a global worker pool with a number of workers.
 
         dispatcher.InitWorkerPoolGlobal(100000)
 
-2. Create a job dispatcher giving a subset of workers from the global worker pool, and start listening to new jobs.
+3. Create a job dispatcher giving a subset of workers from the global worker pool, and start listening to new jobs.
 
         disp := dispatcher.NewDispatcher()
         disp.Start(1000)
 
-3. Dispatch jobs (dispatch() will block until at least one worker becomes available and takes the job).
+4. Dispatch jobs (dispatch() will block until at least one worker becomes available and takes the job).
 
         type myJob struct {
             // ...
@@ -55,10 +55,10 @@ Note: a dispatcher is not supposed to be reused. Always create a new dispatcher 
 
         disp.Dispatch(&myJob{...})
 
-4. Wait until all jobs are done and return workers back to the global worker pool.
+5. Wait until all jobs are done and return workers back to the global worker pool.
 
         disp.Finalize()
 
-5. Optional: wait until all job dispatchers are finalized and destroy the global worker pool.
+6. Optional: wait until all job dispatchers are finalized and destroy the global worker pool.
 
         dispatcher.DestroyWorkerPoolGlobal()
