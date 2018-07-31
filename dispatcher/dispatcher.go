@@ -3,7 +3,6 @@
 package dispatcher
 
 import (
-	"fmt"
 	"sync"
 	"time"
 )
@@ -14,8 +13,6 @@ const (
 	isFinalized   int = 2
 )
 
-var workerPoolGlobal chan *_Worker
-var isGlobalWorkerPoolInitialized bool
 var mutex sync.Mutex
 
 // Dispatcher takes workers from the global worker pool and dispatches
@@ -47,8 +44,10 @@ type _Dispatcher struct {
 }
 
 func (dispatcher *_Dispatcher) Start(numWorkers int) {
+	// Block other dispatchers from getting workers
 	mutex.Lock()
 	defer mutex.Unlock()
+	// Block this dispatcher from dispatching jobs
 	dispatcher.mutex.Lock()
 	defer dispatcher.mutex.Unlock()
 
@@ -57,7 +56,7 @@ func (dispatcher *_Dispatcher) Start(numWorkers int) {
 			after creating a new dispatcher`)
 	}
 
-	numWorkersTotal := cap(workerPoolGlobal)
+	numWorkersTotal := GetNumWorkersTotal()
 	if numWorkers > numWorkersTotal {
 		panic(`Cannot obtain workers more than the number of created
 			workers in the global worker pool`)
@@ -65,11 +64,12 @@ func (dispatcher *_Dispatcher) Start(numWorkers int) {
 
 	dispatcher.jobListener = make(chan _DelayedJob)
 	dispatcher.workerPool = make(chan *_Worker, numWorkers)
+
 	for i := 0; i < numWorkers; i++ {
 		// Take a worker from the global worker pool
 		worker := <-workerPoolGlobal
 
-		// Register the worker into its local worker pool
+		// Register the worker in the dispatcher
 		worker.isActive = true
 		dispatcher.workerPool <- worker
 		dispatcher.numWorkers++
@@ -130,8 +130,9 @@ func (dispatcher *_Dispatcher) Finalize() {
 	// Send a quit quit signal after all tasks are dispatched
 	dispatcher.jobListener <- _DelayedJob{job: &_QuitJob{quitSignChan: quitSignChan}}
 	<-quitSignChan
+	numWorkers := cap(dispatcher.workerPool)
 	// Start recycling workers
-	for i := 0; i < dispatcher.numWorkers; i++ {
+	for i := 0; i < numWorkers; i++ {
 		worker := <-dispatcher.workerPool
 		worker.recycle()
 	}
@@ -149,45 +150,4 @@ func NewDispatcher() Dispatcher {
 	}
 
 	return &_Dispatcher{}
-}
-
-// InitWorkerPoolGlobal initializes the global worker pool safely and
-// creates a given number of workers
-func InitWorkerPoolGlobal(numWorkersTotal int) {
-	mutex.Lock()
-	defer mutex.Unlock()
-
-	if !isGlobalWorkerPoolInitialized {
-		workerPoolGlobal = make(chan *_Worker, numWorkersTotal)
-		for i := 0; i < numWorkersTotal; i++ {
-			workerPoolGlobal <- &_Worker{}
-		}
-		isGlobalWorkerPoolInitialized = true
-	} else {
-		fmt.Println("Global worker pool has been initialized before")
-	}
-}
-
-// DestroyWorkerPoolGlobal drains and closes the global worker pool safely,
-// which blocks until all workers are popped out (all dispatchers are finished)
-func DestroyWorkerPoolGlobal() {
-	mutex.Lock()
-	defer mutex.Unlock()
-
-	numWorkersTotal := cap(workerPoolGlobal)
-	if isGlobalWorkerPoolInitialized {
-		for i := 0; i < numWorkersTotal; i++ {
-			<-workerPoolGlobal
-		}
-		close(workerPoolGlobal)
-		isGlobalWorkerPoolInitialized = false
-	} else {
-		fmt.Println("Global worker pool has been destroyed before")
-	}
-}
-
-// GetNumWorkersAvail returns the number of workers that can be allocated to
-// a new dispatcher
-func GetNumWorkersAvail() int {
-	return len(workerPoolGlobal)
 }
