@@ -1,13 +1,11 @@
 package dispatcher
 
-import "fmt"
-
 var workerPoolGlobal chan *_Worker
 var isGlobalWorkerPoolInitialized bool
 
 // InitWorkerPoolGlobal initializes the global worker pool safely and
 // creates a given number of workers
-func InitWorkerPoolGlobal(numWorkersTotal int) {
+func InitWorkerPoolGlobal(numWorkersTotal int) error {
 	mutex.Lock()
 	defer mutex.Unlock()
 
@@ -17,14 +15,16 @@ func InitWorkerPoolGlobal(numWorkersTotal int) {
 			workerPoolGlobal <- &_Worker{}
 		}
 		isGlobalWorkerPoolInitialized = true
-	} else {
-		fmt.Println("Global worker pool has been initialized before")
+
+		return nil
 	}
+
+	return newError("Global worker pool has been initialized before")
 }
 
 // DestroyWorkerPoolGlobal drains and closes the global worker pool safely,
 // which blocks until all workers are popped out (all dispatchers are finished)
-func DestroyWorkerPoolGlobal() {
+func DestroyWorkerPoolGlobal() error {
 	mutex.Lock()
 	defer mutex.Unlock()
 
@@ -35,9 +35,11 @@ func DestroyWorkerPoolGlobal() {
 		}
 		close(workerPoolGlobal)
 		isGlobalWorkerPoolInitialized = false
-	} else {
-		fmt.Println("Global worker pool has been destroyed before")
+
+		return nil
 	}
+
+	return newError("Global worker pool has been destroyed before")
 }
 
 // GetNumWorkersAvail returns the number of workers that can be allocated to

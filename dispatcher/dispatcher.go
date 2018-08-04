@@ -37,11 +37,12 @@ type Dispatcher interface {
 }
 
 type _Dispatcher struct {
-	workerPool  chan *_Worker
-	jobListener chan _DelayedJob
-	mutex       sync.Mutex
-	numWorkers  int
-	state       int
+	workerPool        chan *_Worker
+	jobListener       chan _DelayedJob
+	mutex             sync.Mutex
+	numWorkers        int
+	state             int
+	reachLimitHandler func()
 }
 
 func (dispatcher *_Dispatcher) Start(numWorkers int) error {
@@ -65,7 +66,11 @@ func (dispatcher *_Dispatcher) Start(numWorkers int) error {
 
 	numWorkersAvail := GetNumWorkersAvail()
 	if numWorkers > numWorkersAvail {
-		log.Print("Not enough workers available at this moment")
+		if dispatcher.reachLimitHandler != nil {
+			dispatcher.reachLimitHandler()
+		} else {
+			log.Print("Not enough workers available at this moment")
+		}
 	}
 
 	dispatcher.jobListener = make(chan _DelayedJob)
@@ -153,10 +158,17 @@ func (dispatcher *_Dispatcher) Finalize() error {
 }
 
 // NewDispatcher returns a new job dispatcher.
-func NewDispatcher() (Dispatcher, error) {
+func NewDispatcher(reachLimitHandler func()) (Dispatcher, error) {
 	if !isGlobalWorkerPoolInitialized {
 		return nil, newError("Global worker pool was not initialized")
 	}
 
-	return &_Dispatcher{}, nil
+	return &_Dispatcher{
+		workerPool:        nil,
+		jobListener:       nil,
+		mutex:             sync.Mutex{},
+		numWorkers:        0,
+		state:             isInitialized,
+		reachLimitHandler: reachLimitHandler,
+	}, nil
 }
