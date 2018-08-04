@@ -3,6 +3,7 @@
 package dispatcher
 
 import (
+	"log"
 	"sync"
 	"time"
 )
@@ -23,16 +24,16 @@ type Dispatcher interface {
 	// them in the dispatcher worker pool. Then it starts a for loop receving new jobs
 	// dispatched and giving them to any workers available. Note that it blocks other
 	// dispatchers from calling it, and can only be called once per dispatcher.
-	Start(numWorkers int)
+	Start(numWorkers int) error
 	// Dispatch gives a job to a worker at a time, and blocks until at least one worker
 	// becomes available. Each job dispatched is handled by a separate goroutine.
-	Dispatch(job Job)
+	Dispatch(job Job) error
 	// DispatchWithDelay behaves similarly to Dispatch, except it is delayed for a given
 	// period of time before the job is allocated to a worker.
-	DispatchWithDelay(job Job, delayPeriod time.Duration)
+	DispatchWithDelay(job Job, delayPeriod time.Duration) error
 	// Finalize blocks until all jobs dispatched are finished and all workers are returned
 	// to the global worker pool. Note that it can only be called once per dispatcher.
-	Finalize()
+	Finalize() error
 }
 
 type _Dispatcher struct {
@@ -43,7 +44,7 @@ type _Dispatcher struct {
 	state       int
 }
 
-func (dispatcher *_Dispatcher) Start(numWorkers int) {
+func (dispatcher *_Dispatcher) Start(numWorkers int) error {
 	// Block other dispatchers from getting workers
 	mutex.Lock()
 	defer mutex.Unlock()
@@ -52,14 +53,19 @@ func (dispatcher *_Dispatcher) Start(numWorkers int) {
 	defer dispatcher.mutex.Unlock()
 
 	if dispatcher.state != isInitialized {
-		panic(`Dispatcher is not in initialized state, Start() can only be called once
-			after creating a new dispatcher`)
+		return newError(`Dispatcher is not in initialized state, 
+			Start() can only be called once after a new dispatcher is created`)
 	}
 
 	numWorkersTotal := GetNumWorkersTotal()
 	if numWorkers > numWorkersTotal {
-		panic(`Cannot obtain workers more than the number of created
+		return newError(`Cannot obtain more workers than the number of created 
 			workers in the global worker pool`)
+	}
+
+	numWorkersAvail := GetNumWorkersAvail()
+	if numWorkers > numWorkersAvail {
+		log.Print("Not enough workers available at this moment")
 	}
 
 	dispatcher.jobListener = make(chan _DelayedJob)
@@ -91,39 +97,42 @@ func (dispatcher *_Dispatcher) Start(numWorkers int) {
 	}()
 
 	dispatcher.state = isReady
+	return nil
 }
 
-func (dispatcher *_Dispatcher) Dispatch(job Job) {
+func (dispatcher *_Dispatcher) Dispatch(job Job) error {
 	dispatcher.mutex.Lock()
 	defer dispatcher.mutex.Unlock()
 
 	if dispatcher.state != isReady {
-		panic(`Dispatcher is not in ready state. Start() must be called
-			to enable dispatcher to dispatch jobs`)
+		return newError(`Dispatcher is not in ready state. 
+			Start() must be called to enable dispatcher to dispatch jobs`)
 	}
 
 	dispatcher.jobListener <- _DelayedJob{job: job}
+	return nil
 }
 
-func (dispatcher *_Dispatcher) DispatchWithDelay(job Job, delayPeriod time.Duration) {
+func (dispatcher *_Dispatcher) DispatchWithDelay(job Job, delayPeriod time.Duration) error {
 	dispatcher.mutex.Lock()
 	defer dispatcher.mutex.Unlock()
 
 	if dispatcher.state != isReady {
-		panic(`Dispatcher is not in ready state. Start() must be called
-			to enable dispatcher to dispatch jobs`)
+		return newError(`Dispatcher is not in ready state. 
+			Start() must be called to enable dispatcher to dispatch jobs`)
 	}
 
 	dispatcher.jobListener <- _DelayedJob{job: job, delayPeriod: delayPeriod}
+	return nil
 }
 
-func (dispatcher *_Dispatcher) Finalize() {
+func (dispatcher *_Dispatcher) Finalize() error {
 	dispatcher.mutex.Lock()
 	defer dispatcher.mutex.Unlock()
 
 	if dispatcher.state != isReady {
-		panic(`Dispatcher is not in ready state. Start() must be called to start
-			listening before finalizing it`)
+		return newError(`Dispatcher is not in ready state. 
+			Start() must be called to start listening before finalizing it`)
 	}
 
 	quitSignChan := make(chan _QuitSignal)
@@ -140,14 +149,14 @@ func (dispatcher *_Dispatcher) Finalize() {
 	close(dispatcher.jobListener)
 	// Stop listening
 	dispatcher.state = isFinalized
+	return nil
 }
 
 // NewDispatcher returns a new job dispatcher.
-func NewDispatcher() Dispatcher {
+func NewDispatcher() (Dispatcher, error) {
 	if !isGlobalWorkerPoolInitialized {
-		panic(`Please call InitWorkerPoolGlobal() before creating
-			new dispatchers`)
+		return nil, newError("Global worker pool was not initialized")
 	}
 
-	return &_Dispatcher{}
+	return &_Dispatcher{}, nil
 }

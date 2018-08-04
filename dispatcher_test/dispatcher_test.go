@@ -42,7 +42,7 @@ func TestStartingDispatchers(T *testing.T) {
 	assertion := assert.New(T)
 	dispatcher.InitWorkerPoolGlobal(numWorkersTotal)
 	// Create one dispatcher
-	disp := dispatcher.NewDispatcher()
+	disp, _ := dispatcher.NewDispatcher()
 	numWorkersTaken := 100
 	disp.Start(numWorkersTaken)
 	numWorkersLeft := dispatcher.GetNumWorkersAvail()
@@ -54,7 +54,7 @@ func TestStartingDispatchers(T *testing.T) {
 	)
 	// Create another dispatcher
 	numWorkersTaken2 := numWorkersLeftExpected
-	disp2 := dispatcher.NewDispatcher()
+	disp2, _ := dispatcher.NewDispatcher()
 	disp2.Start(numWorkersTaken2)
 	numWorkersLeft = dispatcher.GetNumWorkersAvail()
 	numWorkersLeftExpected -= numWorkersTaken2
@@ -90,7 +90,7 @@ func TestDispatchingJobs(T *testing.T) {
 	dispatcher.InitWorkerPoolGlobal(numWorkersTotal)
 	// Create one dispatcher
 	numWorkersTaken := 100
-	disp := dispatcher.NewDispatcher()
+	disp, _ := dispatcher.NewDispatcher()
 	disp.Start(numWorkersTaken)
 	// Dispatch jobs
 	sum := 0
@@ -115,7 +115,7 @@ func TestDispatchingJobsWithDelay(T *testing.T) {
 	// Create one dispatcher
 	numWorkersTaken := 100
 	numJobs := 100
-	disp := dispatcher.NewDispatcher()
+	disp, _ := dispatcher.NewDispatcher()
 	disp.Start(numWorkersTaken)
 
 	receiver := make(chan bool, numJobs)
@@ -146,7 +146,7 @@ func TestMultiGoroutineDispatchingJobs(T *testing.T) {
 
 	go func() {
 		// Create one dispatcher
-		disp := dispatcher.NewDispatcher()
+		disp, _ := dispatcher.NewDispatcher()
 		disp.Start(numWorkersTaken1)
 		// Dispatch jobs
 		for i := 0; i < numJobs1; i++ {
@@ -158,7 +158,7 @@ func TestMultiGoroutineDispatchingJobs(T *testing.T) {
 
 	go func() {
 		// Create one dispatcher
-		disp := dispatcher.NewDispatcher()
+		disp, _ := dispatcher.NewDispatcher()
 		disp.Start(numWorkersTaken2)
 		// Dispatch jobs
 		for i := 0; i < numJobs2; i++ {
