@@ -21,10 +21,12 @@ var mutex sync.Mutex
 // number of workers can be used.
 type Dispatcher interface {
 	// Start takes a given number of workers from the global worker pool, and registers
-	// them in the dispatcher worker pool. Then it starts a for loop receving new jobs
-	// dispatched and giving them to any workers available. Note that it blocks other
+	// them in the dispatcher worker pool. It starts a for loop waiting for new jobs
+	// dispatched and giving them to any workers available. A receiver channel will be
+	// returned which will return an empty struct signal indicating the given number
+	// of workers are all obtained from global worker pool. Note that it blocks other
 	// dispatchers from calling it, and can only be called once per dispatcher.
-	Start(numWorkers int) error
+	Start(numWorkers int, reachLimitHandler func()) (chan struct{}, error)
 	// Dispatch gives a job to a worker at a time, and blocks until at least one worker
 	// becomes available. Each job dispatched is handled by a separate goroutine.
 	Dispatch(job Job) error
@@ -37,37 +39,35 @@ type Dispatcher interface {
 }
 
 type _Dispatcher struct {
-	workerPool        chan *_Worker
-	jobListener       chan _DelayedJob
-	mutex             sync.Mutex
-	numWorkers        int
-	state             int
-	reachLimitHandler func()
+	workerPool  chan *_Worker
+	jobListener chan _DelayedJob
+	mutex       sync.Mutex
+	numWorkers  int
+	state       int
 }
 
-func (dispatcher *_Dispatcher) Start(numWorkers int) error {
+func (dispatcher *_Dispatcher) Start(numWorkers int, reachLimitHandler func()) (chan struct{}, error) {
 	// Block other dispatchers from getting workers
 	mutex.Lock()
-	defer mutex.Unlock()
 	// Block this dispatcher from dispatching jobs
 	dispatcher.mutex.Lock()
 	defer dispatcher.mutex.Unlock()
 
 	if dispatcher.state != isInitialized {
-		return newError(`Dispatcher is not in initialized state, 
+		return nil, newError(`Dispatcher is not in initialized state, 
 			Start() can only be called once after a new dispatcher is created`)
 	}
 
 	numWorkersTotal := GetNumWorkersTotal()
 	if numWorkers > numWorkersTotal {
-		return newError(`Cannot obtain more workers than the number of created 
+		return nil, newError(`Cannot obtain more workers than the number of created 
 			workers in the global worker pool`)
 	}
 
 	numWorkersAvail := GetNumWorkersAvail()
 	if numWorkers > numWorkersAvail {
-		if dispatcher.reachLimitHandler != nil {
-			dispatcher.reachLimitHandler()
+		if reachLimitHandler != nil {
+			reachLimitHandler()
 		} else {
 			log.Print("Not enough workers available at this moment")
 		}
@@ -75,16 +75,23 @@ func (dispatcher *_Dispatcher) Start(numWorkers int) error {
 
 	dispatcher.jobListener = make(chan _DelayedJob)
 	dispatcher.workerPool = make(chan *_Worker, numWorkers)
+	workersReceivedSigChan := make(chan struct{}, 1)
+	go func() {
+		for i := 0; i < numWorkers; i++ {
+			// Take a worker from the global worker pool
+			worker := <-workerPoolGlobal
 
-	for i := 0; i < numWorkers; i++ {
-		// Take a worker from the global worker pool
-		worker := <-workerPoolGlobal
+			// Register the worker in the dispatcher
+			worker.isActive = true
+			dispatcher.workerPool <- worker
+			dispatcher.numWorkers++
+		}
 
-		// Register the worker in the dispatcher
-		worker.isActive = true
-		dispatcher.workerPool <- worker
-		dispatcher.numWorkers++
-	}
+		var sig struct{}
+		workersReceivedSigChan <- sig
+		// Unblock other dispatchers from getting workers
+		mutex.Unlock()
+	}()
 
 	go func() {
 		for delayedJob := range dispatcher.jobListener {
@@ -102,7 +109,8 @@ func (dispatcher *_Dispatcher) Start(numWorkers int) error {
 	}()
 
 	dispatcher.state = isReady
-	return nil
+
+	return workersReceivedSigChan, nil
 }
 
 func (dispatcher *_Dispatcher) Dispatch(job Job) error {
@@ -158,17 +166,10 @@ func (dispatcher *_Dispatcher) Finalize() error {
 }
 
 // NewDispatcher returns a new job dispatcher.
-func NewDispatcher(reachLimitHandler func()) (Dispatcher, error) {
+func NewDispatcher() (Dispatcher, error) {
 	if !isGlobalWorkerPoolInitialized {
 		return nil, newError("Global worker pool was not initialized")
 	}
 
-	return &_Dispatcher{
-		workerPool:        nil,
-		jobListener:       nil,
-		mutex:             sync.Mutex{},
-		numWorkers:        0,
-		state:             isInitialized,
-		reachLimitHandler: reachLimitHandler,
-	}, nil
+	return &_Dispatcher{}, nil
 }

@@ -42,9 +42,11 @@ func TestStartingDispatchers(T *testing.T) {
 	assertion := assert.New(T)
 	dispatcher.InitWorkerPoolGlobal(numWorkersTotal)
 	// Create one dispatcher
-	disp, _ := dispatcher.NewDispatcher(nil)
+	disp, _ := dispatcher.NewDispatcher()
 	numWorkersTaken := 100
-	disp.Start(numWorkersTaken)
+	complete1, _ := disp.Start(numWorkersTaken, nil)
+	<-complete1
+
 	numWorkersLeft := dispatcher.GetNumWorkersAvail()
 	numWorkersLeftExpected := numWorkersTotal - numWorkersTaken
 	assertion.Equal(
@@ -54,8 +56,10 @@ func TestStartingDispatchers(T *testing.T) {
 	)
 	// Create another dispatcher
 	numWorkersTaken2 := numWorkersLeftExpected
-	disp2, _ := dispatcher.NewDispatcher(nil)
-	disp2.Start(numWorkersTaken2)
+	disp2, _ := dispatcher.NewDispatcher()
+	complete2, _ := disp2.Start(numWorkersTaken2, nil)
+	<-complete2
+
 	numWorkersLeft = dispatcher.GetNumWorkersAvail()
 	numWorkersLeftExpected -= numWorkersTaken2
 	assertion.Equal(
@@ -90,8 +94,9 @@ func TestDispatchingJobs(T *testing.T) {
 	dispatcher.InitWorkerPoolGlobal(numWorkersTotal)
 	// Create one dispatcher
 	numWorkersTaken := 100
-	disp, _ := dispatcher.NewDispatcher(nil)
-	disp.Start(numWorkersTaken)
+	disp, _ := dispatcher.NewDispatcher()
+	disp.Start(numWorkersTaken, nil)
+
 	// Dispatch jobs
 	sum := 0
 	receiver := make(chan bool, numWorkersTaken)
@@ -115,8 +120,8 @@ func TestDispatchingJobsWithDelay(T *testing.T) {
 	// Create one dispatcher
 	numWorkersTaken := 100
 	numJobs := 100
-	disp, _ := dispatcher.NewDispatcher(nil)
-	disp.Start(numWorkersTaken)
+	disp, _ := dispatcher.NewDispatcher()
+	disp.Start(numWorkersTaken, nil)
 
 	receiver := make(chan bool, numJobs)
 	start := time.Now()
@@ -145,8 +150,8 @@ func TestMultiGoroutineDispatchingJobs(T *testing.T) {
 
 	go func() {
 		// Create one dispatcher
-		disp, _ := dispatcher.NewDispatcher(nil)
-		disp.Start(numWorkersTaken1)
+		disp, _ := dispatcher.NewDispatcher()
+		disp.Start(numWorkersTaken1, nil)
 		// Dispatch jobs
 		for i := 0; i < numJobs1; i++ {
 			disp.Dispatch(&testJob{resultSender: receiver1})
@@ -157,8 +162,8 @@ func TestMultiGoroutineDispatchingJobs(T *testing.T) {
 
 	go func() {
 		// Create one dispatcher
-		disp, _ := dispatcher.NewDispatcher(nil)
-		disp.Start(numWorkersTaken2)
+		disp, _ := dispatcher.NewDispatcher()
+		disp.Start(numWorkersTaken2, nil)
 		// Dispatch jobs
 		for i := 0; i < numJobs2; i++ {
 			disp.Dispatch(&testJob{resultSender: receiver2})
@@ -191,13 +196,15 @@ func TestHandlingReachLimitWarning(T *testing.T) {
 	jobFinishReceiver1 := make(chan struct{}, 1)
 	jobFinishReceiver2 := make(chan struct{}, 1)
 
-	disp1, _ := dispatcher.NewDispatcher(reachLimitHandler)
-	disp2, _ := dispatcher.NewDispatcher(reachLimitHandler)
+	disp1, _ := dispatcher.NewDispatcher()
+	disp2, _ := dispatcher.NewDispatcher()
 
 	go func() {
-		disp1.Start(numWorkersTotal - 1)
+		complete1, _ := disp1.Start(numWorkersTotal-1, nil)
+		<-complete1
 		// Expect to be blocked until disp1 releases workers
-		disp2.Start(numWorkersTotal - 1)
+		complete2, _ := disp2.Start(numWorkersTotal-1, reachLimitHandler)
+		<-complete2
 
 		disp2.Finalize()
 		var sig struct{}
