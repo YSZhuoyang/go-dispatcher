@@ -28,8 +28,8 @@ func DestroyWorkerPoolGlobal() error {
 	mutex.Lock()
 	defer mutex.Unlock()
 
-	numWorkersTotal := GetNumWorkersTotal()
 	if isGlobalWorkerPoolInitialized {
+		numWorkersTotal, _ := GetNumWorkersTotal()
 		for i := 0; i < numWorkersTotal; i++ {
 			<-workerPoolGlobal
 		}
@@ -44,11 +44,19 @@ func DestroyWorkerPoolGlobal() error {
 
 // GetNumWorkersAvail returns the number of workers that can be allocated to
 // a new dispatcher
-func GetNumWorkersAvail() int {
-	return len(workerPoolGlobal)
+func GetNumWorkersAvail() (int, error) {
+	if !isGlobalWorkerPoolInitialized {
+		return 0, newError("Global worker pool was not initialized")
+	}
+
+	return len(workerPoolGlobal), nil
 }
 
 // GetNumWorkersTotal returns total number of workers created by the global worker pool
-func GetNumWorkersTotal() int {
-	return cap(workerPoolGlobal)
+func GetNumWorkersTotal() (int, error) {
+	if !isGlobalWorkerPoolInitialized {
+		return 0, newError("Global worker pool was not initialized")
+	}
+
+	return cap(workerPoolGlobal), nil
 }

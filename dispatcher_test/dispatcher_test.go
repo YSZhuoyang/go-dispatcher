@@ -20,24 +20,49 @@ func (job *testJob) Do() {
 
 func TestInitAndDestroyWorkerPool(T *testing.T) {
 	assertion := assert.New(T)
+	// Expect an error to be returned by getting number of available workers
+	// without initializing global worker pool first
+	numWorkersAvail, err := dispatcher.GetNumWorkersAvail()
+	assertion.Equal(numWorkersAvail, 0, "Wrong number of available workers "+
+		"returned give global worker pool was not initialized")
+	assertion.EqualError(
+		err,
+		"Global worker pool was not initialized",
+		"Wrong error was returned by getting number of available workers"+
+			"without initializing global worker pool first",
+	)
+	// Expect an error to be returned by getting number of total workers
+	// without initializing global worker pool first
+	numWorkersInitializedTotal, err := dispatcher.GetNumWorkersTotal()
+	assertion.Equal(numWorkersInitializedTotal, 0, "Wrong total number of workers "+
+		"returned give global worker pool was not initialized")
+	assertion.EqualError(
+		err,
+		"Global worker pool was not initialized",
+		"Wrong error was returned by getting total number of workers"+
+			"without initializing global worker pool first",
+	)
+
 	// Verify initialization
 	dispatcher.InitWorkerPoolGlobal(numWorkersTotal)
-	numWorkersInitialized := dispatcher.GetNumWorkersAvail()
+	numWorkersInitialized, err := dispatcher.GetNumWorkersAvail()
+	assertion.Nil(err, "A non empty error was returned by getting number of available workers")
 	assertion.Equal(
 		numWorkersInitialized,
 		numWorkersTotal,
 		"Total number of workers initialized was not correct",
 	)
 	// Expect error to be returned when initialization is called twice
-	err := dispatcher.InitWorkerPoolGlobal(numWorkersTotal)
+	err = dispatcher.InitWorkerPoolGlobal(numWorkersTotal)
 	assertion.EqualError(
 		err,
 		"Global worker pool has been initialized",
 		"Wrong error returned by initializing global worker pool twice",
 	)
+
 	// Verify destroying
 	dispatcher.DestroyWorkerPoolGlobal()
-	numWorkersLeft := dispatcher.GetNumWorkersAvail()
+	numWorkersLeft, _ := dispatcher.GetNumWorkersAvail()
 	assertion.Equal(
 		numWorkersLeft,
 		0,
@@ -84,7 +109,7 @@ func TestStartingDispatchers(T *testing.T) {
 		"Wrong error was returned by calling Start() twice",
 	)
 
-	numWorkersLeft := dispatcher.GetNumWorkersAvail()
+	numWorkersLeft, _ := dispatcher.GetNumWorkersAvail()
 	numWorkersLeftExpected := numWorkersTotal - numWorkersTaken
 	assertion.Equal(
 		numWorkersLeftExpected,
@@ -99,7 +124,7 @@ func TestStartingDispatchers(T *testing.T) {
 	assertion.Nil(err, "A non empty error was returned by starting a dispatcher")
 	<-complete2
 
-	numWorkersLeft = dispatcher.GetNumWorkersAvail()
+	numWorkersLeft, _ = dispatcher.GetNumWorkersAvail()
 	numWorkersLeftExpected -= numWorkersTaken2
 	assertion.Equal(
 		numWorkersLeftExpected,
@@ -110,7 +135,7 @@ func TestStartingDispatchers(T *testing.T) {
 	// Finalize the first dispatcher
 	err = disp1.Finalize()
 	assertion.Nil(err, "A non empty error was returned by finalizing a dispatcher")
-	numWorkersLeft = dispatcher.GetNumWorkersAvail()
+	numWorkersLeft, _ = dispatcher.GetNumWorkersAvail()
 	numWorkersLeftExpected += numWorkersTaken
 	assertion.Equal(
 		numWorkersLeftExpected,
@@ -129,7 +154,7 @@ func TestStartingDispatchers(T *testing.T) {
 	// Finalize the second dispatcher
 	err = disp2.Finalize()
 	assertion.Nil(err, "A non empty error was returned by finalizing a dispatcher")
-	numWorkersLeft = dispatcher.GetNumWorkersAvail()
+	numWorkersLeft, _ = dispatcher.GetNumWorkersAvail()
 	numWorkersLeftExpected += numWorkersTaken2
 	assertion.Equal(
 		numWorkersLeftExpected,

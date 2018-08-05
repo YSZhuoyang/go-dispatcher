@@ -60,14 +60,16 @@ func (dispatcher *_Dispatcher) Start(numWorkers int, reachLimitHandler func()) (
 			"Start() can only be called once after a new dispatcher is created")
 	}
 
-	if numWorkers > GetNumWorkersTotal() {
+	numWorkersTotal, _ := GetNumWorkersTotal()
+	if numWorkers > numWorkersTotal {
 		// Unblock other dispatchers from getting workers
 		mutex.Unlock()
 		return nil, newError("Cannot obtain more workers than the number of created " +
 			"workers in the global worker pool")
 	}
 
-	if numWorkers > GetNumWorkersAvail() {
+	numWorkersAvail, _ := GetNumWorkersAvail()
+	if numWorkers > numWorkersAvail {
 		if reachLimitHandler != nil {
 			reachLimitHandler()
 		} else {
