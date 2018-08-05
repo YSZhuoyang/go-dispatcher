@@ -19,7 +19,7 @@ func InitWorkerPoolGlobal(numWorkersTotal int) error {
 		return nil
 	}
 
-	return newError("Global worker pool has been initialized before")
+	return newError("Global worker pool has been initialized")
 }
 
 // DestroyWorkerPoolGlobal drains and closes the global worker pool safely,
@@ -39,7 +39,7 @@ func DestroyWorkerPoolGlobal() error {
 		return nil
 	}
 
-	return newError("Global worker pool has been destroyed before")
+	return newError("Global worker pool has been destroyed")
 }
 
 // GetNumWorkersAvail returns the number of workers that can be allocated to

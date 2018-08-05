@@ -28,6 +28,13 @@ func TestInitAndDestroyWorkerPool(T *testing.T) {
 		numWorkersTotal,
 		"Total number of workers initialized was not correct",
 	)
+	// Expect error to be returned when initialization is called twice
+	err := dispatcher.InitWorkerPoolGlobal(numWorkersTotal)
+	assertion.EqualError(
+		err,
+		"Global worker pool has been initialized",
+		"Wrong error returned by initializing global worker pool twice",
+	)
 	// Verify destroying
 	dispatcher.DestroyWorkerPoolGlobal()
 	numWorkersLeft := dispatcher.GetNumWorkersAvail()
@@ -36,16 +43,46 @@ func TestInitAndDestroyWorkerPool(T *testing.T) {
 		0,
 		"Total number of workers initialized was not correct",
 	)
+	// Expect an error to be returned when destroy is called twice
+	err = dispatcher.DestroyWorkerPoolGlobal()
+	assertion.EqualError(
+		err,
+		"Global worker pool has been destroyed",
+		"Wrong error returned by destroying global worker pool twice",
+	)
 }
 
 func TestStartingDispatchers(T *testing.T) {
 	assertion := assert.New(T)
+	// Expect an error to be returned by creating a dispatcher without
+	// initializing global worker pool
+	disp, err := dispatcher.NewDispatcher()
+	assertion.EqualError(
+		err,
+		"Global worker pool was not initialized",
+		"Wrong error returned by creating a new dispatcher when global worker pool was not initialized",
+	)
+	assertion.Nil(disp, "Dispatcher was created given global worker pool was not initialized")
 	dispatcher.InitWorkerPoolGlobal(numWorkersTotal)
 	// Create one dispatcher
-	disp, _ := dispatcher.NewDispatcher()
+	disp1, err := dispatcher.NewDispatcher()
+	assertion.Nil(err, "A non empty error was returned by creating a new dispatcher")
 	numWorkersTaken := 100
-	complete1, _ := disp.Start(numWorkersTaken, nil)
+	complete1, err := disp1.Start(numWorkersTaken, nil)
+	assertion.Nil(err, "A non empty error was returned by starting a dispatcher")
 	<-complete1
+	// Expect an error to be returned by calling Start() twice
+	completeErr, err := disp1.Start(numWorkersTaken, nil)
+	assertion.Nil(
+		completeErr,
+		"A non empty channel was returned by starting a dispatcher for the second time",
+	)
+	assertion.EqualError(
+		err,
+		"Dispatcher is not in initialized state, "+
+			"Start() can only be called once after a new dispatcher is created",
+		"Wrong error was returned by calling Start() twice",
+	)
 
 	numWorkersLeft := dispatcher.GetNumWorkersAvail()
 	numWorkersLeftExpected := numWorkersTotal - numWorkersTaken
@@ -56,8 +93,10 @@ func TestStartingDispatchers(T *testing.T) {
 	)
 	// Create another dispatcher
 	numWorkersTaken2 := numWorkersLeftExpected
-	disp2, _ := dispatcher.NewDispatcher()
-	complete2, _ := disp2.Start(numWorkersTaken2, nil)
+	disp2, err := dispatcher.NewDispatcher()
+	assertion.Nil(err, "A non empty error was returned by creating a new dispatcher")
+	complete2, err := disp2.Start(numWorkersTaken2, nil)
+	assertion.Nil(err, "A non empty error was returned by starting a dispatcher")
 	<-complete2
 
 	numWorkersLeft = dispatcher.GetNumWorkersAvail()
@@ -67,8 +106,10 @@ func TestStartingDispatchers(T *testing.T) {
 		numWorkersLeft,
 		"2) Number of workers left were not correct",
 	)
+
 	// Finalize the first dispatcher
-	disp.Finalize()
+	err = disp1.Finalize()
+	assertion.Nil(err, "A non empty error was returned by finalizing a dispatcher")
 	numWorkersLeft = dispatcher.GetNumWorkersAvail()
 	numWorkersLeftExpected += numWorkersTaken
 	assertion.Equal(
@@ -76,8 +117,18 @@ func TestStartingDispatchers(T *testing.T) {
 		numWorkersLeft,
 		"3) Number of workers left were not correct",
 	)
+	// Expect an error to be returned by calling finalizing twice
+	err = disp1.Finalize()
+	assertion.EqualError(
+		err,
+		"Dispatcher is not in ready state. "+
+			"Start() must be called to start listening before finalizing it",
+		"Wrong error was returned by calling finalizing twice",
+	)
+
 	// Finalize the second dispatcher
-	disp2.Finalize()
+	err = disp2.Finalize()
+	assertion.Nil(err, "A non empty error was returned by finalizing a dispatcher")
 	numWorkersLeft = dispatcher.GetNumWorkersAvail()
 	numWorkersLeftExpected += numWorkersTaken2
 	assertion.Equal(
@@ -92,14 +143,27 @@ func TestStartingDispatchers(T *testing.T) {
 func TestDispatchingJobs(T *testing.T) {
 	assertion := assert.New(T)
 	dispatcher.InitWorkerPoolGlobal(numWorkersTotal)
-	// Create one dispatcher
 	numWorkersTaken := 100
+	receiver := make(chan bool, numWorkersTaken)
+
+	// Create one dispatcher
 	disp, _ := dispatcher.NewDispatcher()
+
+	// Expect an error to be returned by calling dispatch without
+	// calling starting the dispatcher first
+	err := disp.Dispatch(&testJob{resultSender: receiver})
+	assertion.EqualError(
+		err,
+		"Dispatcher is not in ready state. "+
+			"Start() must be called to enable dispatcher to dispatch jobs",
+		"Wrong error was returned by dispatching jobs without "+
+			"starting the dispatcher first",
+	)
+
 	disp.Start(numWorkersTaken, nil)
 
 	// Dispatch jobs
 	sum := 0
-	receiver := make(chan bool, numWorkersTaken)
 	for i := 0; i < numWorkersTaken; i++ {
 		disp.Dispatch(&testJob{resultSender: receiver})
 	}
@@ -117,13 +181,26 @@ func TestDispatchingJobs(T *testing.T) {
 func TestDispatchingJobsWithDelay(T *testing.T) {
 	assertion := assert.New(T)
 	dispatcher.InitWorkerPoolGlobal(numWorkersTotal)
-	// Create one dispatcher
 	numWorkersTaken := 100
 	numJobs := 100
+	receiver := make(chan bool, numJobs)
+
+	// Create one dispatcher
 	disp, _ := dispatcher.NewDispatcher()
+
+	// Expect an error to be returned by calling dispatch with delay without
+	// calling starting the dispatcher first
+	err := disp.Dispatch(&testJob{resultSender: receiver})
+	assertion.EqualError(
+		err,
+		"Dispatcher is not in ready state. "+
+			"Start() must be called to enable dispatcher to dispatch jobs",
+		"Wrong error was returned by dispatching jobs with delay without "+
+			"starting the dispatcher first",
+	)
+
 	disp.Start(numWorkersTaken, nil)
 
-	receiver := make(chan bool, numJobs)
 	start := time.Now()
 	// Dispatch jobs with delay
 	for i := 0; i < numJobs; i++ {

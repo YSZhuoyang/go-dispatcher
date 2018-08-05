@@ -54,18 +54,20 @@ func (dispatcher *_Dispatcher) Start(numWorkers int, reachLimitHandler func()) (
 	defer dispatcher.mutex.Unlock()
 
 	if dispatcher.state != isInitialized {
-		return nil, newError(`Dispatcher is not in initialized state, 
-			Start() can only be called once after a new dispatcher is created`)
+		// Unblock other dispatchers from getting workers
+		mutex.Unlock()
+		return nil, newError("Dispatcher is not in initialized state, " +
+			"Start() can only be called once after a new dispatcher is created")
 	}
 
-	numWorkersTotal := GetNumWorkersTotal()
-	if numWorkers > numWorkersTotal {
-		return nil, newError(`Cannot obtain more workers than the number of created 
-			workers in the global worker pool`)
+	if numWorkers > GetNumWorkersTotal() {
+		// Unblock other dispatchers from getting workers
+		mutex.Unlock()
+		return nil, newError("Cannot obtain more workers than the number of created " +
+			"workers in the global worker pool")
 	}
 
-	numWorkersAvail := GetNumWorkersAvail()
-	if numWorkers > numWorkersAvail {
+	if numWorkers > GetNumWorkersAvail() {
 		if reachLimitHandler != nil {
 			reachLimitHandler()
 		} else {
@@ -118,8 +120,8 @@ func (dispatcher *_Dispatcher) Dispatch(job Job) error {
 	defer dispatcher.mutex.Unlock()
 
 	if dispatcher.state != isReady {
-		return newError(`Dispatcher is not in ready state. 
-			Start() must be called to enable dispatcher to dispatch jobs`)
+		return newError("Dispatcher is not in ready state. " +
+			"Start() must be called to enable dispatcher to dispatch jobs")
 	}
 
 	dispatcher.jobListener <- _DelayedJob{job: job}
@@ -131,8 +133,8 @@ func (dispatcher *_Dispatcher) DispatchWithDelay(job Job, delayPeriod time.Durat
 	defer dispatcher.mutex.Unlock()
 
 	if dispatcher.state != isReady {
-		return newError(`Dispatcher is not in ready state. 
-			Start() must be called to enable dispatcher to dispatch jobs`)
+		return newError("Dispatcher is not in ready state. " +
+			"Start() must be called to enable dispatcher to dispatch jobs")
 	}
 
 	dispatcher.jobListener <- _DelayedJob{job: job, delayPeriod: delayPeriod}
@@ -144,8 +146,8 @@ func (dispatcher *_Dispatcher) Finalize() error {
 	defer dispatcher.mutex.Unlock()
 
 	if dispatcher.state != isReady {
-		return newError(`Dispatcher is not in ready state. 
-			Start() must be called to start listening before finalizing it`)
+		return newError("Dispatcher is not in ready state. " +
+			"Start() must be called to start listening before finalizing it")
 	}
 
 	quitSignChan := make(chan _QuitSignal)
