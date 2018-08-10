@@ -1,10 +1,9 @@
-package dispatcher_test
+package dispatcher
 
 import (
 	"testing"
 	"time"
 
-	"github.com/YSZhuoyang/go-dispatcher/dispatcher"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -22,7 +21,7 @@ func TestInitAndDestroyWorkerPool(T *testing.T) {
 	assertion := assert.New(T)
 	// Expect an error to be returned by getting number of available workers
 	// without initializing global worker pool first
-	numWorkersAvail, err := dispatcher.GetNumWorkersAvail()
+	numWorkersAvail, err := GetNumWorkersAvail()
 	assertion.Equal(numWorkersAvail, 0, "Wrong number of available workers "+
 		"returned give global worker pool was not initialized")
 	assertion.EqualError(
@@ -33,7 +32,7 @@ func TestInitAndDestroyWorkerPool(T *testing.T) {
 	)
 	// Expect an error to be returned by getting number of total workers
 	// without initializing global worker pool first
-	numWorkersInitializedTotal, err := dispatcher.GetNumWorkersTotal()
+	numWorkersInitializedTotal, err := GetNumWorkersTotal()
 	assertion.Equal(numWorkersInitializedTotal, 0, "Wrong total number of workers "+
 		"returned give global worker pool was not initialized")
 	assertion.EqualError(
@@ -44,8 +43,8 @@ func TestInitAndDestroyWorkerPool(T *testing.T) {
 	)
 
 	// Verify initialization
-	dispatcher.InitWorkerPoolGlobal(numWorkersTotal)
-	numWorkersInitialized, err := dispatcher.GetNumWorkersAvail()
+	InitWorkerPoolGlobal(numWorkersTotal)
+	numWorkersInitialized, err := GetNumWorkersAvail()
 	assertion.Nil(err, "A non empty error was returned by getting number of available workers")
 	assertion.Equal(
 		numWorkersInitialized,
@@ -53,7 +52,7 @@ func TestInitAndDestroyWorkerPool(T *testing.T) {
 		"Total number of workers initialized was not correct",
 	)
 	// Expect error to be returned when initialization is called twice
-	err = dispatcher.InitWorkerPoolGlobal(numWorkersTotal)
+	err = InitWorkerPoolGlobal(numWorkersTotal)
 	assertion.EqualError(
 		err,
 		"Global worker pool has been initialized",
@@ -61,15 +60,15 @@ func TestInitAndDestroyWorkerPool(T *testing.T) {
 	)
 
 	// Verify destroying
-	dispatcher.DestroyWorkerPoolGlobal()
-	numWorkersLeft, _ := dispatcher.GetNumWorkersAvail()
+	DestroyWorkerPoolGlobal()
+	numWorkersLeft, _ := GetNumWorkersAvail()
 	assertion.Equal(
 		numWorkersLeft,
 		0,
 		"Total number of workers initialized was not correct",
 	)
 	// Expect an error to be returned when destroy is called twice
-	err = dispatcher.DestroyWorkerPoolGlobal()
+	err = DestroyWorkerPoolGlobal()
 	assertion.EqualError(
 		err,
 		"Global worker pool has been destroyed",
@@ -81,16 +80,16 @@ func TestStartingDispatchers(T *testing.T) {
 	assertion := assert.New(T)
 	// Expect an error to be returned by creating a dispatcher without
 	// initializing global worker pool
-	disp, err := dispatcher.NewDispatcher()
+	disp, err := NewDispatcher()
 	assertion.EqualError(
 		err,
 		"Global worker pool was not initialized",
 		"Wrong error returned by creating a new dispatcher when global worker pool was not initialized",
 	)
 	assertion.Nil(disp, "Dispatcher was created given global worker pool was not initialized")
-	dispatcher.InitWorkerPoolGlobal(numWorkersTotal)
+	InitWorkerPoolGlobal(numWorkersTotal)
 	// Create one dispatcher
-	disp1, err := dispatcher.NewDispatcher()
+	disp1, err := NewDispatcher()
 	assertion.Nil(err, "A non empty error was returned by creating a new dispatcher")
 	numWorkersTaken := 100
 	complete1, err := disp1.Start(numWorkersTaken, nil)
@@ -109,7 +108,7 @@ func TestStartingDispatchers(T *testing.T) {
 		"Wrong error was returned by calling Start() twice",
 	)
 
-	numWorkersLeft, _ := dispatcher.GetNumWorkersAvail()
+	numWorkersLeft, _ := GetNumWorkersAvail()
 	numWorkersLeftExpected := numWorkersTotal - numWorkersTaken
 	assertion.Equal(
 		numWorkersLeftExpected,
@@ -118,13 +117,13 @@ func TestStartingDispatchers(T *testing.T) {
 	)
 	// Create another dispatcher
 	numWorkersTaken2 := numWorkersLeftExpected
-	disp2, err := dispatcher.NewDispatcher()
+	disp2, err := NewDispatcher()
 	assertion.Nil(err, "A non empty error was returned by creating a new dispatcher")
 	complete2, err := disp2.Start(numWorkersTaken2, nil)
 	assertion.Nil(err, "A non empty error was returned by starting a dispatcher")
 	<-complete2
 
-	numWorkersLeft, _ = dispatcher.GetNumWorkersAvail()
+	numWorkersLeft, _ = GetNumWorkersAvail()
 	numWorkersLeftExpected -= numWorkersTaken2
 	assertion.Equal(
 		numWorkersLeftExpected,
@@ -135,7 +134,7 @@ func TestStartingDispatchers(T *testing.T) {
 	// Finalize the first dispatcher
 	err = disp1.Finalize()
 	assertion.Nil(err, "A non empty error was returned by finalizing a dispatcher")
-	numWorkersLeft, _ = dispatcher.GetNumWorkersAvail()
+	numWorkersLeft, _ = GetNumWorkersAvail()
 	numWorkersLeftExpected += numWorkersTaken
 	assertion.Equal(
 		numWorkersLeftExpected,
@@ -154,7 +153,7 @@ func TestStartingDispatchers(T *testing.T) {
 	// Finalize the second dispatcher
 	err = disp2.Finalize()
 	assertion.Nil(err, "A non empty error was returned by finalizing a dispatcher")
-	numWorkersLeft, _ = dispatcher.GetNumWorkersAvail()
+	numWorkersLeft, _ = GetNumWorkersAvail()
 	numWorkersLeftExpected += numWorkersTaken2
 	assertion.Equal(
 		numWorkersLeftExpected,
@@ -162,17 +161,17 @@ func TestStartingDispatchers(T *testing.T) {
 		"4) Number of workers left were not correct",
 	)
 
-	dispatcher.DestroyWorkerPoolGlobal()
+	DestroyWorkerPoolGlobal()
 }
 
 func TestDispatchingJobs(T *testing.T) {
 	assertion := assert.New(T)
-	dispatcher.InitWorkerPoolGlobal(numWorkersTotal)
+	InitWorkerPoolGlobal(numWorkersTotal)
 	numWorkersTaken := 100
 	receiver := make(chan bool, numWorkersTaken)
 
 	// Create one dispatcher
-	disp, _ := dispatcher.NewDispatcher()
+	disp, _ := NewDispatcher()
 
 	// Expect an error to be returned by calling dispatch without
 	// calling starting the dispatcher first
@@ -200,18 +199,18 @@ func TestDispatchingJobs(T *testing.T) {
 	}
 	assertion.Equal(numWorkersTaken, sum, "Incorrect number of job being dispatched")
 
-	dispatcher.DestroyWorkerPoolGlobal()
+	DestroyWorkerPoolGlobal()
 }
 
 func TestDispatchingJobsWithDelay(T *testing.T) {
 	assertion := assert.New(T)
-	dispatcher.InitWorkerPoolGlobal(numWorkersTotal)
+	InitWorkerPoolGlobal(numWorkersTotal)
 	numWorkersTaken := 100
 	numJobs := 100
 	receiver := make(chan bool, numJobs)
 
 	// Create one dispatcher
-	disp, _ := dispatcher.NewDispatcher()
+	disp, _ := NewDispatcher()
 
 	// Expect an error to be returned by calling dispatch with delay without
 	// calling starting the dispatcher first
@@ -235,12 +234,12 @@ func TestDispatchingJobsWithDelay(T *testing.T) {
 	assertion.True(elapse >= 100000, "Job dispatching was not delayed with the correct time period")
 
 	disp.Finalize()
-	dispatcher.DestroyWorkerPoolGlobal()
+	DestroyWorkerPoolGlobal()
 }
 
 func TestMultiGoroutineDispatchingJobs(T *testing.T) {
 	assertion := assert.New(T)
-	dispatcher.InitWorkerPoolGlobal(numWorkersTotal)
+	InitWorkerPoolGlobal(numWorkersTotal)
 	numWorkersTaken1 := numWorkersTotal - 1
 	numWorkersTaken2 := numWorkersTotal - 1
 	numJobs1 := numWorkersTaken1 + 100
@@ -252,7 +251,7 @@ func TestMultiGoroutineDispatchingJobs(T *testing.T) {
 
 	go func() {
 		// Create one dispatcher
-		disp, _ := dispatcher.NewDispatcher()
+		disp, _ := NewDispatcher()
 		disp.Start(numWorkersTaken1, nil)
 		// Dispatch jobs
 		for i := 0; i < numJobs1; i++ {
@@ -264,7 +263,7 @@ func TestMultiGoroutineDispatchingJobs(T *testing.T) {
 
 	go func() {
 		// Create one dispatcher
-		disp, _ := dispatcher.NewDispatcher()
+		disp, _ := NewDispatcher()
 		disp.Start(numWorkersTaken2, nil)
 		// Dispatch jobs
 		for i := 0; i < numJobs2; i++ {
@@ -283,11 +282,11 @@ func TestMultiGoroutineDispatchingJobs(T *testing.T) {
 	}
 	assertion.Equal(numJobs1+numJobs2, sum, "Incorrect number of job being dispatched")
 
-	dispatcher.DestroyWorkerPoolGlobal()
+	DestroyWorkerPoolGlobal()
 }
 
 func TestHandlingReachLimitWarning(T *testing.T) {
-	dispatcher.InitWorkerPoolGlobal(numWorkersTotal)
+	InitWorkerPoolGlobal(numWorkersTotal)
 
 	reachLimitChan := make(chan struct{})
 	reachLimitHandler := func() {
@@ -298,8 +297,8 @@ func TestHandlingReachLimitWarning(T *testing.T) {
 	jobFinishReceiver1 := make(chan struct{}, 1)
 	jobFinishReceiver2 := make(chan struct{}, 1)
 
-	disp1, _ := dispatcher.NewDispatcher()
-	disp2, _ := dispatcher.NewDispatcher()
+	disp1, _ := NewDispatcher()
+	disp2, _ := NewDispatcher()
 
 	go func() {
 		complete1, _ := disp1.Start(numWorkersTotal-1, nil)
@@ -329,5 +328,5 @@ func TestHandlingReachLimitWarning(T *testing.T) {
 	<-jobFinishReceiver2
 	close(jobFinishReceiver1)
 	close(jobFinishReceiver2)
-	dispatcher.DestroyWorkerPoolGlobal()
+	DestroyWorkerPoolGlobal()
 }

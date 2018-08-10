@@ -1,6 +1,7 @@
 # go-dispatcher
 
 [![Build Status](https://travis-ci.org/YSZhuoyang/go-dispatcher.svg?branch=master)](https://travis-ci.org/YSZhuoyang/go-dispatcher)
+[![Coverage Status](https://coveralls.io/repos/github/YSZhuoyang/go-dispatcher/badge.svg?branch=master)](https://coveralls.io/github/YSZhuoyang/go-dispatcher?branch=master)
 [![GoDoc](https://godoc.org/github.com/YSZhuoyang/go-dispatcher/dispatcher?status.svg)](https://godoc.org/github.com/YSZhuoyang/go-dispatcher/dispatcher)
 
 A worker-pool job dispatcher inspired by the [Post: Handling 1 Million Requests per Minute with Go](http://marcio.io/2015/07/handling-1-million-requests-per-minute-with-golang/).
@@ -41,7 +42,7 @@ Note: a dispatcher is not supposed to be reused. Always create a new dispatcher 
 3. Create a job dispatcher giving a subset of workers from the global worker pool, and start listening to new jobs.
 
         disp := dispatcher.NewDispatcher()
-        disp.Start(1000)
+        disp.Start(1000, nil)
 
 4. Dispatch jobs (dispatch() will block until at least one worker becomes available and takes the job).
 
