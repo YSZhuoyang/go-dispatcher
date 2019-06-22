@@ -6,8 +6,8 @@
 
 A worker-pool job dispatcher inspired by the [Post: Handling 1 Million Requests per Minute with Go](http://marcio.io/2015/07/handling-1-million-requests-per-minute-with-golang/).
 
-* Easily manage dependencies of concurrent job executions.
-* Limit the total number of goroutines to prevent it from draining out of resources.
+* Easily run batches of jobs in sequence, for algorithms that involve running a set of independent tasks concurrently for a while, then all wait on a barrier, and repeat again.
+* Limit total number of goroutines to prevent it from draining out of resources.
 
 ## How it works
 
@@ -25,9 +25,9 @@ A worker-pool job dispatcher inspired by the [Post: Handling 1 Million Requests 
               |              |     |              |
               ----------------     ----------------
 
-A worker pool is used to spawn and keep workers globally. One or more job dispatchers can be created by taking subsets of workers from it, and registering them in their local worker pools. Workers are recycled by global worker pool after dispatchers are finalized. Batches of jobs executed by multiple dispatchers can be either synchronous or asynchronous.
+A worker pool is used to spawn and keep workers globally. One or more job dispatchers can be created by taking subsets of workers from it, and registering them in their local worker pools. Workers are recycled by global worker pool after dispatchers are finalized.
 
-Note: a dispatcher is not supposed to be reused. Always create a new dispatcher for one start - finalize execution cycle.
+Note: a dispatcher is not supposed to be reused. Always create a new dispatcher for one *start -> dispatch -> finalize* cycle.
 
 ## How to use
 
