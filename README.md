@@ -7,7 +7,7 @@
 A worker-pool job dispatcher inspired by the [Post: Handling 1 Million Requests per Minute with Go](http://marcio.io/2015/07/handling-1-million-requests-per-minute-with-golang/).
 
 * Easily run batches of jobs in sequence, for algorithms that involve running a set of independent tasks concurrently for a while, then all wait on a barrier, and repeat again.
-* Limit total number of goroutines to prevent it from draining out of resources.
+* Limit total number of goroutines to prevent it from draining out resources.
 
 ## How it works
 
