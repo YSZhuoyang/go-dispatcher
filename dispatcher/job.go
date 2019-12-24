@@ -13,13 +13,13 @@ type _DelayedJob struct {
 	delayPeriod time.Duration
 }
 
-type _QuitSignal struct{}
+type _FinishSignal struct{}
 
-type _QuitJob struct {
-	quitSignChan chan _QuitSignal
+type _EmptyJob struct {
+	finishSignReceiver chan _FinishSignal
 }
 
-func (quitJob *_QuitJob) Do() {
+func (quitJob *_EmptyJob) Do() {
 	// Tell the dispatcher that all jobs have been dispatched
-	quitJob.quitSignChan <- _QuitSignal{}
+	quitJob.finishSignReceiver <- _FinishSignal{}
 }
