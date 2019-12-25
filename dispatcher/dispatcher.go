@@ -16,9 +16,9 @@ type Dispatcher interface {
 	// DispatchWithDelay behaves similarly to Dispatch, except it is delayed for a given
 	// period of time (in nanoseconds) before the job is allocated to a worker.
 	DispatchWithDelay(job Job, delayPeriod time.Duration) error
-	// Await blocks until all jobs dispatched are finished and all workers are returned
-	// to worker pool.
-	Await()
+	// Finialize blocks until all jobs dispatched are finished and all workers are returned
+	// to worker pool. Note a finalized dispatcher cannot be reused.
+	Finialize()
 	// GetNumWorkersAvail returns the number of workers availalbe for tasks at the time
 	// it is called.
 	GetNumWorkersAvail() int
@@ -52,7 +52,7 @@ func (dispatcher *_Dispatcher) DispatchWithDelay(job Job, delayPeriod time.Durat
 	return nil
 }
 
-func (dispatcher *_Dispatcher) Await() {
+func (dispatcher *_Dispatcher) Finialize() {
 	dispatcher.Lock()
 	defer dispatcher.Unlock()
 
@@ -62,6 +62,8 @@ func (dispatcher *_Dispatcher) Await() {
 	<-finishSignReceiver
 	// Wait for all workers to finish their jobs
 	dispatcher.wg.Wait()
+	// Stop task loop
+	close(dispatcher.jobListener)
 }
 
 func (dispatcher *_Dispatcher) GetNumWorkersAvail() int {

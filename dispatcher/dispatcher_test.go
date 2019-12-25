@@ -59,7 +59,7 @@ func TestInitWorkerPool(T *testing.T) {
 	)
 }
 
-func TestAwaitingJobs(T *testing.T) {
+func TestFinializingJobs(T *testing.T) {
 	assertion := assert.New(T)
 	numWorkers := 100
 	disp, _ := NewDispatcher(numWorkers)
@@ -70,11 +70,11 @@ func TestAwaitingJobs(T *testing.T) {
 		disp.Dispatch(&testBigJob{accumulator: &accumulator, mutex: &mutex})
 	}
 
-	disp.Await()
+	disp.Finialize()
 	assertion.Equal(accumulator, numWorkers, "Dispatcher did not wait for all jobs to complete")
 }
 
-func TestAwaitingDelayedJobs(T *testing.T) {
+func TestFinializingDelayedJobs(T *testing.T) {
 	assertion := assert.New(T)
 	numWorkers := 100
 	disp, _ := NewDispatcher(numWorkers)
@@ -85,11 +85,11 @@ func TestAwaitingDelayedJobs(T *testing.T) {
 		disp.DispatchWithDelay(&testBigJob{accumulator: &accumulator, mutex: &mutex}, 50000)
 	}
 
-	disp.Await()
+	disp.Finialize()
 	assertion.Equal(accumulator, numWorkers, "Dispatcher did not wait for all jobs to complete")
 }
 
-func TestAwaitingManyDelayedJobs(T *testing.T) {
+func TestFinializingManyDelayedJobs(T *testing.T) {
 	assertion := assert.New(T)
 	numWorkers := 100
 	numJobs := numWorkers * 10
@@ -101,7 +101,7 @@ func TestAwaitingManyDelayedJobs(T *testing.T) {
 		disp.DispatchWithDelay(&testBigJob{accumulator: &accumulator, mutex: &mutex}, 50000)
 	}
 
-	disp.Await()
+	disp.Finialize()
 	assertion.Equal(accumulator, numJobs, "Dispatcher did not wait for all jobs to complete")
 }
 
@@ -116,7 +116,7 @@ func TestDispatchingJobs(T *testing.T) {
 	for i := 0; i < numWorkers; i++ {
 		disp.Dispatch(&testJob{resultSender: receiver})
 	}
-	disp.Await()
+	disp.Finialize()
 	close(receiver)
 	// Verify the number of jobs being done
 	for range receiver {
@@ -136,7 +136,7 @@ func TestDispatchingJobsWithDelay(T *testing.T) {
 	for i := 0; i < numWorkers; i++ {
 		disp.DispatchWithDelay(&testJob{resultSender: receiver}, 10000)
 	}
-	disp.Await()
+	disp.Finialize()
 	elapse := time.Since(start)
 	assertion.True(elapse >= 1000000, "Job dispatching was not delayed with the correct time period")
 }
@@ -166,7 +166,7 @@ func TestDispatchingManyJobs(T *testing.T) {
 		for i := 0; i < numJobs; i++ {
 			disp.Dispatch(&testJob{resultSender: receiver})
 		}
-		disp.Await()
+		disp.Finialize()
 		close(receiver)
 	}(numJobs)
 
@@ -176,38 +176,4 @@ func TestDispatchingManyJobs(T *testing.T) {
 		sum++
 	}
 	assertion.Equal(numJobs, sum, "Incorrect number of job executed")
-}
-
-func TestReusingDispatcher(T *testing.T) {
-	assertion := assert.New(T)
-	numWorkers := 100
-	receiver := make(chan bool, numWorkers)
-	disp, _ := NewDispatcher(numWorkers)
-
-	// Dispatch jobs
-	sum := 0
-	for i := 0; i < numWorkers; i++ {
-		disp.Dispatch(&testJob{resultSender: receiver})
-	}
-	disp.Await()
-	close(receiver)
-	// Verify the number of jobs being done
-	for range receiver {
-		sum++
-	}
-	assertion.Equal(numWorkers, sum, "Incorrect number of job being dispatched")
-
-	// Reuse the dispatcher to dispatch jobs
-	receiver = make(chan bool, numWorkers)
-	sum = 0
-	for i := 0; i < numWorkers; i++ {
-		disp.Dispatch(&testJob{resultSender: receiver})
-	}
-	disp.Await()
-	close(receiver)
-	// Verify the number of jobs being done
-	for range receiver {
-		sum++
-	}
-	assertion.Equal(numWorkers, sum, "Incorrect number of job being dispatched")
 }

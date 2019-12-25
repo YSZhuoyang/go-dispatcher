@@ -25,6 +25,8 @@ A worker-pool job dispatcher inspired by the [Post: Handling 1 Million Requests 
 
 A worker pool is used to spawn and keep workers accessible by the dispatcher. Jobs are queued and dispatched within a loop, and registering them in their local worker pools. Workers are recycled by global worker pool after dispatchers are finalized.
 
+Note: a dispatcher is not supposed to be reused, as calling `Finalize()` ends the task loop. This is to avoid no longer used task dispatchers leaving infinite task loops.
+
 ## How to use
 
 1. Download and import package.
@@ -47,6 +49,6 @@ A worker pool is used to spawn and keep workers accessible by the dispatcher. Jo
 
         disp.Dispatch(&myJob{...})
 
-4. Wait until all jobs are done and return workers back to the global worker pool.
+4. Wait until all jobs are done and terminate the task loop.
 
-        disp.Await()
+        disp.Finalize()
