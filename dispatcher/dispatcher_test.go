@@ -89,6 +89,22 @@ func TestAwaitingDelayedJobs(T *testing.T) {
 	assertion.Equal(accumulator, numWorkers, "Dispatcher did not wait for all jobs to complete")
 }
 
+func TestAwaitingManyDelayedJobs(T *testing.T) {
+	assertion := assert.New(T)
+	numWorkers := 100
+	numJobs := numWorkers * 10
+	disp, _ := NewDispatcher(numWorkers)
+	var mutex sync.Mutex
+	accumulator := 0
+	for i := 0; i < numJobs; i++ {
+		// Each big job takes 50000 ns to finish
+		disp.DispatchWithDelay(&testBigJob{accumulator: &accumulator, mutex: &mutex}, 50000)
+	}
+
+	disp.Await()
+	assertion.Equal(accumulator, numJobs, "Dispatcher did not wait for all jobs to complete")
+}
+
 func TestDispatchingJobs(T *testing.T) {
 	assertion := assert.New(T)
 	numWorkers := 100
