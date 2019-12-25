@@ -161,3 +161,37 @@ func TestDispatchingManyJobs(T *testing.T) {
 	}
 	assertion.Equal(numJobs, sum, "Incorrect number of job executed")
 }
+
+func TestReusingDispatcher(T *testing.T) {
+	assertion := assert.New(T)
+	numWorkers := 100
+	receiver := make(chan bool, numWorkers)
+	disp, _ := NewDispatcher(numWorkers)
+
+	// Dispatch jobs
+	sum := 0
+	for i := 0; i < numWorkers; i++ {
+		disp.Dispatch(&testJob{resultSender: receiver})
+	}
+	disp.Await()
+	close(receiver)
+	// Verify the number of jobs being done
+	for range receiver {
+		sum++
+	}
+	assertion.Equal(numWorkers, sum, "Incorrect number of job being dispatched")
+
+	// Reuse the dispatcher to dispatch jobs
+	receiver = make(chan bool, numWorkers)
+	sum = 0
+	for i := 0; i < numWorkers; i++ {
+		disp.Dispatch(&testJob{resultSender: receiver})
+	}
+	disp.Await()
+	close(receiver)
+	// Verify the number of jobs being done
+	for range receiver {
+		sum++
+	}
+	assertion.Equal(numWorkers, sum, "Incorrect number of job being dispatched")
+}

@@ -11,23 +11,19 @@ A worker-pool job dispatcher inspired by the [Post: Handling 1 Million Requests 
 
 ## How it works
 
-                    -------------------------
-                    |  global worker pool   |
-                    |                       |
-                    |                       |
-                    -------------------------
-                     | /|\              | /|\
-               get   |  | return        |  |
-             workers |  | workers       |  |
-                    \|/ |              \|/ |
-              ----------------     ----------------
-      jobs -> |  dispatcher  |     |  dispatcher  | <- jobs
-              |              |     |              |
-              ----------------     ----------------
+                    ----------------
+       job queue -> |  dispatcher  |
+                    |              |
+                    ----------------
+                          | /|\
+                          |  |
+                         \|/ |
+                      -----------
+                      |  worker |
+                      |   pool  |
+                      -----------
 
-A worker pool is used to spawn and keep workers globally. One or more job dispatchers can be created by taking subsets of workers from it, and registering them in their local worker pools. Workers are recycled by global worker pool after dispatchers are finalized.
-
-Note: a dispatcher is not supposed to be reused. Always create a new dispatcher for one *start -> dispatch -> finalize* cycle.
+A worker pool is used to spawn and keep workers accessible by the dispatcher. Jobs are queued and dispatched within a loop, and registering them in their local worker pools. Workers are recycled by global worker pool after dispatchers are finalized.
 
 ## How to use
 
@@ -35,16 +31,11 @@ Note: a dispatcher is not supposed to be reused. Always create a new dispatcher 
 
         go get -u github.com/YSZhuoyang/go-dispatcher/dispatcher
 
-2. Initialize a global worker pool with a number of workers.
+2. Create a job dispatcher with a worker pool initialized with given size, and start listening to new jobs.
 
-        dispatcher.InitWorkerPoolGlobal(100000)
+        disp := dispatcher.NewDispatcher(1000)
 
-3. Create a job dispatcher giving a subset of workers from the global worker pool, and start listening to new jobs.
-
-        disp := dispatcher.NewDispatcher()
-        disp.Start(1000, nil)
-
-4. Dispatch jobs (dispatch() will block until at least one worker becomes available and takes the job).
+3. Dispatch jobs (dispatch() will block until at least one worker becomes available and takes the job).
 
         type myJob struct {
             // ...
@@ -56,10 +47,6 @@ Note: a dispatcher is not supposed to be reused. Always create a new dispatcher 
 
         disp.Dispatch(&myJob{...})
 
-5. Wait until all jobs are done and return workers back to the global worker pool.
+4. Wait until all jobs are done and return workers back to the global worker pool.
 
-        disp.Finalize()
-
-6. Optional: wait until all job dispatchers are finalized and destroy the global worker pool.
-
-        dispatcher.DestroyWorkerPoolGlobal()
+        disp.Await()

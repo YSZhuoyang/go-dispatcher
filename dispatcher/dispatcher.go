@@ -17,10 +17,10 @@ type Dispatcher interface {
 	// period of time (in nanoseconds) before the job is allocated to a worker.
 	DispatchWithDelay(job Job, delayPeriod time.Duration) error
 	// Await blocks until all jobs dispatched are finished and all workers are returned
-	// to the global worker pool. Note that it can only be called once per dispatcher.
+	// to worker pool.
 	Await()
-	// GetNumWorkersAvail returns the number of workers that can be allocated to
-	// a new dispatcher.
+	// GetNumWorkersAvail returns the number of workers availalbe for tasks at the time
+	// it is called.
 	GetNumWorkersAvail() int
 	// GetTotalNumWorkers returns total number of workers created by the dispatcher.
 	GetTotalNumWorkers() int
@@ -28,6 +28,7 @@ type Dispatcher interface {
 
 type _Dispatcher struct {
 	sync.Mutex
+	wg          *sync.WaitGroup
 	workerPool  chan *_Worker
 	jobListener chan _DelayedJob
 }
@@ -55,18 +56,12 @@ func (dispatcher *_Dispatcher) Await() {
 	dispatcher.Lock()
 	defer dispatcher.Unlock()
 
-	// Wait for all jobs to be dispatched
+	// Wait for all jobs to be dispatched (to ensure wg.Add() happens before wg.Wait())
 	finishSignReceiver := make(chan _FinishSignal)
 	dispatcher.jobListener <- _DelayedJob{job: &_EmptyJob{finishSignReceiver: finishSignReceiver}}
 	<-finishSignReceiver
 	// Wait for all workers to finish their jobs
-	numWorkers := cap(dispatcher.workerPool)
-	for i := 0; i < numWorkers; i++ {
-		<-dispatcher.workerPool
-	}
-	for i := 0; i < numWorkers; i++ {
-		dispatcher.workerPool <- &_Worker{}
-	}
+	dispatcher.wg.Wait()
 }
 
 func (dispatcher *_Dispatcher) GetNumWorkersAvail() int {
@@ -84,22 +79,25 @@ func NewDispatcher(numWorkers int) (Dispatcher, error) {
 		return nil, newError("Invalid number of workers given to create a new dispatcher")
 	}
 
-	dispatcher := &_Dispatcher{}
+	wg := &sync.WaitGroup{}
+	dispatcher := &_Dispatcher{wg: wg}
 	dispatcher.jobListener = make(chan _DelayedJob)
 	dispatcher.workerPool = make(chan *_Worker, numWorkers)
 	for i := 0; i < numWorkers; i++ {
 		// Register the worker in the dispatcher
-		dispatcher.workerPool <- &_Worker{}
+		dispatcher.workerPool <- &_Worker{wg: wg}
 	}
 
 	go func() {
 		for delayedJob := range dispatcher.jobListener {
 			time.Sleep(delayedJob.delayPeriod)
 			worker := <-dispatcher.workerPool
+			worker.wg.Add(1)
 			go func(job Job, worker *_Worker) {
 				job.Do()
 				// Return it back to the worker pool
 				dispatcher.workerPool <- worker
+				worker.wg.Done()
 			}(delayedJob.job, worker)
 		}
 	}()
