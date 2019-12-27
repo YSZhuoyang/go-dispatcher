@@ -7,8 +7,8 @@ import (
 	"time"
 )
 
-// Dispatcher creates workers registered in a worker pool and dispatches
-// jobs to them.
+// Dispatcher internally maintains a worker pool and runs a job dispatching loop
+// assigning jobs to workers available.
 type Dispatcher interface {
 	// Dispatch gives a job to a worker at a time, and blocks until at least one worker
 	// becomes available. Each job dispatched is handled by a separate goroutine.
@@ -17,7 +17,8 @@ type Dispatcher interface {
 	// period of time (in nanoseconds) before the job is allocated to a worker.
 	DispatchWithDelay(job Job, delayPeriod time.Duration) error
 	// Finalize blocks until all jobs dispatched are finished and all workers are returned
-	// to worker pool. Note a finalized dispatcher cannot be reused.
+	// to worker pool. Note it must be called to terminate the dispatching loop when the
+	// dispatcher is no longer needed, and a finalized dispatcher must not be reused.
 	Finalize()
 	// GetNumWorkersAvail returns the number of workers availalbe for tasks at the time
 	// it is called.

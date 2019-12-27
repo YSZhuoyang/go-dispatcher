@@ -23,7 +23,7 @@ A worker-pool job dispatcher inspired by the [Post: Handling 1 Million Requests 
                       |   pool  |
                       -----------
 
-A dispatcher internally maintains a worker pool and runs a job dispatching loop allocating new jobs to workers available. It then waits for all Jobs dispatched to finish and cleanup everything.
+A dispatcher internally maintains a worker pool and runs a job dispatching loop assigning jobs to workers available. It then waits for all Jobs dispatched to finish and cleanup everything.
 
 Note: a dispatcher is not meant to be reused, `Finalize()` must be called at the end to terminate its job dispatching loop. This is to avoid goroutine leaks.
 
@@ -35,7 +35,7 @@ Note: a dispatcher is not meant to be reused, `Finalize()` must be called at the
 
 2. Create a job dispatcher with a worker pool initialized with given size, and start listening to new jobs.
 
-        disp := dispatcher.NewDispatcher(1000)
+        disp, _ := dispatcher.NewDispatcher(1000)
 
 3. Dispatch jobs (dispatch() will block until at least one worker becomes available and takes the job).
 
