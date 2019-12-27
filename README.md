@@ -23,9 +23,9 @@ A worker-pool job dispatcher inspired by the [Post: Handling 1 Million Requests 
                       |   pool  |
                       -----------
 
-A worker pool is used to spawn and keep workers accessible by the dispatcher. Jobs are queued and dispatched within a loop, and registering them in their local worker pools. Workers are recycled by global worker pool after dispatchers are finalized.
+A dispatcher internally maintains a worker pool and runs a job dispatching loop allocating new jobs to workers available. It then waits for all Jobs dispatched to finish and cleanup everything.
 
-Note: a dispatcher is not supposed to be reused, as calling `Finalize()` ends the task loop. This is to avoid no longer used task dispatchers leaving infinite task loops.
+Note: a dispatcher is not meant to be reused, `Finalize()` must be called at the end to terminate its job dispatching loop. This is to avoid goroutine leaks.
 
 ## How to use
 

@@ -1,6 +1,7 @@
 package dispatcher
 
 import (
+	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -27,6 +28,18 @@ func (job *testBigJob) Do() {
 
 	time.Sleep(50000)
 	*job.accumulator++
+}
+
+func TestGoroutineLeaks(T *testing.T) {
+	assertion := assert.New(T)
+
+	for i := 0; i < 100; i++ {
+		disp, _ := NewDispatcher(100)
+		disp.Finalize()
+	}
+
+	runtime.GC()
+	assertion.Equal(2, runtime.NumGoroutine())
 }
 
 func TestInitWorkerPool(T *testing.T) {
@@ -70,7 +83,7 @@ func TestFinializingJobs(T *testing.T) {
 		disp.Dispatch(&testBigJob{accumulator: &accumulator, mutex: &mutex})
 	}
 
-	disp.Finialize()
+	disp.Finalize()
 	assertion.Equal(accumulator, numWorkers, "Dispatcher did not wait for all jobs to complete")
 }
 
@@ -85,7 +98,7 @@ func TestFinializingDelayedJobs(T *testing.T) {
 		disp.DispatchWithDelay(&testBigJob{accumulator: &accumulator, mutex: &mutex}, 50000)
 	}
 
-	disp.Finialize()
+	disp.Finalize()
 	assertion.Equal(accumulator, numWorkers, "Dispatcher did not wait for all jobs to complete")
 }
 
@@ -101,7 +114,7 @@ func TestFinializingManyDelayedJobs(T *testing.T) {
 		disp.DispatchWithDelay(&testBigJob{accumulator: &accumulator, mutex: &mutex}, 50000)
 	}
 
-	disp.Finialize()
+	disp.Finalize()
 	assertion.Equal(accumulator, numJobs, "Dispatcher did not wait for all jobs to complete")
 }
 
@@ -116,7 +129,7 @@ func TestDispatchingJobs(T *testing.T) {
 	for i := 0; i < numWorkers; i++ {
 		disp.Dispatch(&testJob{resultSender: receiver})
 	}
-	disp.Finialize()
+	disp.Finalize()
 	close(receiver)
 	// Verify the number of jobs being done
 	for range receiver {
@@ -136,7 +149,7 @@ func TestDispatchingJobsWithDelay(T *testing.T) {
 	for i := 0; i < numWorkers; i++ {
 		disp.DispatchWithDelay(&testJob{resultSender: receiver}, 10000)
 	}
-	disp.Finialize()
+	disp.Finalize()
 	elapse := time.Since(start)
 	assertion.True(elapse >= 1000000, "Job dispatching was not delayed with the correct time period")
 }
@@ -166,7 +179,7 @@ func TestDispatchingManyJobs(T *testing.T) {
 		for i := 0; i < numJobs; i++ {
 			disp.Dispatch(&testJob{resultSender: receiver})
 		}
-		disp.Finialize()
+		disp.Finalize()
 		close(receiver)
 	}(numJobs)
 
