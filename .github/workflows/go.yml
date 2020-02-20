@@ -17,6 +17,7 @@ jobs:
       uses: actions/checkout@v2
 
     - name: Get dependencies
+      working-directory: ./dispatcher
       run: |
         go get -v -t -d
         if [ -f Gopkg.toml ]; then
@@ -25,15 +26,17 @@ jobs:
         fi
 
     - name: Build
+      working-directory: ./dispatcher
       run: go build -v .
 
     - name: Test
+      working-directory: ./dispatcher
       run: |
         go get -v -u github.com/mattn/goveralls
-        go test -v -covermode=count -coverprofile=coverage.out ./dispatcher
+        go test -v -covermode=count -coverprofile=coverage.out
 
     - name: Send test results to coveralls
       uses: coverallsapp/github-action@v1.0.1
       with:
-        path: ./coverage.out
+        path: ./dispatcher/coverage.out
         github-token: ${{ secrets.GITHUB_TOKEN }}
