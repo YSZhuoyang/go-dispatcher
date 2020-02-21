@@ -1,12 +1,13 @@
 # go-dispatcher
 
-[![Build Status](https://travis-ci.org/YSZhuoyang/go-dispatcher.svg?branch=master)](https://travis-ci.org/YSZhuoyang/go-dispatcher)
+![Build](https://github.com/YSZhuoyang/go-dispatcher/workflows/Build/badge.svg?branch=master)
 [![Coverage Status](https://coveralls.io/repos/github/YSZhuoyang/go-dispatcher/badge.svg?branch=master)](https://coveralls.io/github/YSZhuoyang/go-dispatcher?branch=master)
 [![GoDoc](https://godoc.org/github.com/YSZhuoyang/go-dispatcher/dispatcher?status.svg)](https://godoc.org/github.com/YSZhuoyang/go-dispatcher/dispatcher)
 
 A worker-pool job dispatcher inspired by the [Post: Handling 1 Million Requests per Minute with Go](http://marcio.io/2015/07/handling-1-million-requests-per-minute-with-golang/).
 
-* Easily run batches of jobs in sequence, for algorithms that involve running a set of independent tasks concurrently for a while, then all wait on a barrier, and repeat again.
+* [Barrier Synchronization](https://docs.microsoft.com/en-us/windows/win32/sync/synchronization-barriers): Easily run batches of jobs in sequence, for algorithms that involve running a set of independent tasks concurrently for a while, then all wait on a barrier, and repeat again.
+* [Bulkhead](https://docs.microsoft.com/en-us/azure/architecture/patterns/bulkhead): keep workers in different pools isolated thus one failing does not affect others.
 * Limit total number of goroutines to prevent it from draining out resources.
 
 ## How it works
