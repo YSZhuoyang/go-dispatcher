@@ -28,15 +28,15 @@ type Dispatcher interface {
 }
 
 type _Dispatcher struct {
-	sync.Mutex
+	sync.RWMutex
 	wg          *sync.WaitGroup
 	workerPool  chan *_Worker
 	jobListener chan _DelayedJob
 }
 
 func (dispatcher *_Dispatcher) Dispatch(job Job) {
-	dispatcher.Lock()
-	defer dispatcher.Unlock()
+	dispatcher.RLock()
+	defer dispatcher.RUnlock()
 
 	dispatcher.jobListener <- _DelayedJob{job: job}
 }
@@ -46,8 +46,8 @@ func (dispatcher *_Dispatcher) DispatchWithDelay(job Job, delayPeriod time.Durat
 		return newError("Invalid delay period")
 	}
 
-	dispatcher.Lock()
-	defer dispatcher.Unlock()
+	dispatcher.RLock()
+	defer dispatcher.RUnlock()
 
 	dispatcher.jobListener <- _DelayedJob{job: job, delayPeriod: delayPeriod}
 	return nil
