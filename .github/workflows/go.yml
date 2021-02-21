@@ -27,8 +27,10 @@ jobs:
       working-directory: ./dispatcher
       run: go test -v -covermode=count -coverprofile=profile.cov
 
-    - name: Publish Test Results to Coveralls
-      uses: coverallsapp/github-action@master
-      with:
-        github-token: ${{ secrets.GITHUB_TOKEN }}
-        path-to-lcov: "./dispatcher/profile.cov"
+    - name: Send test results to coveralls
+      working-directory: ./dispatcher
+      env:
+        COVERALLS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        go get -u github.com/mattn/goveralls
+        $(go env GOPATH)/bin/goveralls -coverprofile=profile.cov -service=github
