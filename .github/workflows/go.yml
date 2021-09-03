@@ -10,18 +10,14 @@ jobs:
     - name: Set up Go env
       uses: actions/setup-go@v2
       with:
-        go-version: 1.15
+        go-version: 1.17
 
     - name: Check out code into the Go module directory
       uses: actions/checkout@v2
 
-    - name: Get dependencies
+    - name: Get dependencies & build
       working-directory: ./dispatcher
-      run: go get -v -t -d
-
-    - name: Build
-      working-directory: ./dispatcher
-      run: go build -v .
+      run: go build -mod=readonly -v
 
     - name: Test
       working-directory: ./dispatcher
@@ -32,5 +28,5 @@ jobs:
       env:
         COVERALLS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        go get -u github.com/mattn/goveralls
+        go install github.com/mattn/goveralls@latest
         $(go env GOPATH)/bin/goveralls -coverprofile=profile.cov -service=github
