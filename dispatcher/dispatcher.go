@@ -13,6 +13,9 @@ type Dispatcher interface {
 	// Dispatch gives a job to a worker at a time, and blocks until at least one worker
 	// becomes available. Each job dispatched is handled by a separate goroutine.
 	Dispatch(job Job)
+	// Same as Dispatch() except the job is thrown away if it is not executed
+	// within given timeout duration
+	DispatchWithTimeout(job Job, timeout time.Duration, onTimeout func())
 	// DispatchWithDelay behaves similarly to Dispatch, except it is delayed for a given
 	// period of time (in nanoseconds) before the job is allocated to a worker.
 	DispatchWithDelay(job Job, delayPeriod time.Duration) error
@@ -39,6 +42,24 @@ func (dispatcher *_Dispatcher) Dispatch(job Job) {
 	defer dispatcher.RUnlock()
 
 	dispatcher.jobListener <- _DelayedJob{job: job}
+}
+
+func (dispatcher *_Dispatcher) DispatchWithTimeout(job Job, timeout time.Duration, onTimeout func()) {
+	dispatcher.RLock()
+	defer dispatcher.RUnlock()
+
+	if timeout > 0 {
+		delayedJob := _DelayedJob{job: job, timer: time.NewTimer(timeout)}
+		go func(delayedJob *_DelayedJob) {
+			<-delayedJob.timer.C
+			if onTimeout != nil {
+				onTimeout()
+			}
+		}(&delayedJob)
+		dispatcher.jobListener <- delayedJob
+	} else {
+		dispatcher.jobListener <- _DelayedJob{job: job}
+	}
 }
 
 func (dispatcher *_Dispatcher) DispatchWithDelay(job Job, delayPeriod time.Duration) error {
@@ -93,6 +114,11 @@ func NewDispatcher(numWorkers int) (Dispatcher, error) {
 
 	go func() {
 		for delayedJob := range dispatcher.jobListener {
+			if delayedJob.timer != nil && !delayedJob.timer.Stop() {
+				// Job is not executed within given time frame
+				continue
+			}
+
 			time.Sleep(delayedJob.delayPeriod)
 			worker := <-dispatcher.workerPool
 			worker.wg.Add(1)

@@ -11,6 +11,7 @@ type Job interface {
 type _DelayedJob struct {
 	job         Job
 	delayPeriod time.Duration
+	timer       *time.Timer
 }
 
 type _FinishSignal struct{}
