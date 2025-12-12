@@ -1,6 +1,6 @@
 # go-dispatcher
 
-![Build](https://github.com/YSZhuoyang/go-dispatcher/workflows/Build/badge.svg?branch=master)
+![Build](https://github.com/YSZhuoyang/go-dispatcher/actions/workflows/go.yml/badge.svg?branch=master)
 [![Coverage Status](https://coveralls.io/repos/github/YSZhuoyang/go-dispatcher/badge.svg?branch=master)](https://coveralls.io/github/YSZhuoyang/go-dispatcher?branch=master)
 [![GoDoc](https://godoc.org/github.com/YSZhuoyang/go-dispatcher/dispatcher?status.svg)](https://godoc.org/github.com/YSZhuoyang/go-dispatcher/dispatcher)
 
